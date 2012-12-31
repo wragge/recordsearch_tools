@@ -2,33 +2,55 @@ import re
 import calendar
 import datetime
 
-def process_date(date_string):
-    month_names = dict((v,k) for k,v in enumerate(calendar.month_name))
-    month_abbrs = dict((v,k) for k,v in enumerate(calendar.month_abbr))
+
+def parse_date(date_string):
+    date_obj = None
+    day = False
+    month = False
+    date_formats = [('%d %B %Y', True, True),
+                    ('%d %b %Y', True, True),
+                    ('%d %b. %Y', True, True),
+                    ('%B %Y', False, True),
+                    ('%b %Y', False, True),
+                    ('%Y', False, False),
+                    ]
+    for date_format in date_formats:
+        try:
+            date_obj = datetime.datetime.strptime(date_string, date_format[0])
+        except ValueError:
+            pass
+        else:
+            day = date_format[1]
+            month = date_format[2]
+            break
+    return {'date': date_obj, 'day': day, 'month': month}
+
+
+def process_date_string(date_string):
+    '''
+    Takes a date range in a string and returns date objects,
+    and booleans indicating if values for month and day exist.
+    '''
     dates = date_string.split('-')
     results = []
     for this_date in dates:
-        try:
-            day, month_name, year = re.search(r'(\d{0,2})\s*([A-Za-z]*)\s*(\d{4})', this_date).groups()
-        except AttributeError:
-            # It's a non-standard date so return nothing and worry about it later
-            return [(None, 0, 0, 0)]
-        try:
-            month = month_names[month_name]
-        except KeyError:
-            try:
-                month = month_abbrs[month_name]
-            except KeyError:
-                month = None
-        day = int(day) if day else 0
-        month = int(month) if month else 0
-        year = int(year) if year else 0
-        if day and month and year:
-            try:
-                new_date = datetime.date(year, month, day)
-            except ValueError:
-                new_date = None
-        else:
-            new_date = None
-        results.append((new_date, day, month, year))
+        results.append(parse_date(this_date.strip()))
     return results
+
+
+def convert_date_to_iso(date_dict):
+    '''
+    Simple ISO date formatting.
+    Not dependent on strftime and its year limits.
+    '''
+    date_obj = date_dict['date']
+    if date_obj:
+        if date_dict['day']:
+            iso_date = '{0.year}-{0.month:02d}-{0.day:02d}'.format(date_obj)
+        elif date_dict['month']:
+            iso_date = '{0.year}-{0.month:02d}'.format(date_obj)
+        else:
+            iso_date = '{0.year}'.format(date_obj)
+    else:
+        iso_date = None
+    return iso_date

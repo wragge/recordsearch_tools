@@ -95,9 +95,11 @@ class RSClient:
             end_date = None
         else:
             date_dicts = utilities.process_date_string(date_str)
-            start_date = utilities.convert_date_to_iso(date_dicts[0])
+            #start_date = utilities.convert_date_to_iso(date_dicts[0])
+            start_date = date_dicts[0]
             try:
-                end_date = utilities.convert_date_to_iso(date_dicts[1])
+                #end_date = utilities.convert_date_to_iso(date_dicts[1])
+                end_date = date_dicts[1]
             except IndexError:
                 end_date = None
         return {

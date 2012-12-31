@@ -53,13 +53,18 @@ class TestItemFunctions(unittest.TestCase):
     def setUp(self):
         self.rs = retrieve.RSItemClient()
 
-    def test_get_page_total(self):
-        pages = self.rs.get_page_total('3445411')
-        self.assertEqual(pages, '47')
+    def test_get_title(self):
+        test_title = (
+                'WRAGGE Clement Lionel Egerton : SERN 647 : '
+                'POB Cheadle England : POE Enoggera QLD : '
+                'NOK  (Father) WRAGGE Clement Lindley'
+            )
+        title = self.rs.get_title('3445411')
+        self.assertEqual(title, test_title)
 
-    def test_get_reference(self):
-        reference = self.rs.get_reference('3445411')
-        self.assertEqual(reference, {'series': u'B2455', 'control_symbol': u'WRAGGE C L E', 'digitised': True})
+    def test_get_digitised_pages(self):
+        pages = self.rs.get_digitised_pages('3445411')
+        self.assertEqual(pages, '47')
 
 
 class TestUtilityFunctions(unittest.TestCase):

@@ -3,38 +3,17 @@ Created on 16/02/2011
 
 @author: tim
 '''
-import os.path
-import urllib2
-import urllib
-import cookielib
-import sys
 import re
-#from lxml.builder import E
-#from lxml import etree
 from bs4 import BeautifulSoup
 import mechanize
-import logging
+#import logging
 
 import utilities
+
 #logger = logging.getLogger("mechanize")
 #logger.addHandler(logging.StreamHandler(sys.stdout))
 #logger.setLevel(logging.DEBUG)
 
-#COOKIEFILE = 'cookies.lwp'
-
-
-#Load Search page to set cookies - http://naa12.naa.gov.au/scripts/Logon.asp?N=guest
-
-
-#Construct search and POST to search.asp
-
-#Extract search number and other params from Display button
-
-#Construct items_listing.asp url
-
-#loop over display items pages until all items have been displayed
-
-#harvest details of items
 
 RS_URLS = {
         'item': 'http://www.naa.gov.au/cgi-bin/Search?O=I&Number=',
@@ -239,6 +218,33 @@ class RSItemClient(RSClient):
             digitised = False
         return digitised
 
+    def search_items(self, q=None, series=None, control_symbol=None):
+        '''
+        Retrieves basic item information from a search.
+        '''
+        self.get_advanced_items_search()
+        if q:
+            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbKeywords'] = q
+        if series:
+            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbSerNo'] = series
+        if control_symbol:
+            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbIteControlSymb'] = control_symbol
+        self.br.submit()
+        self.br.select_form(nr=0)
+        self.br.submit()
+        #sort by barcode
+        response = self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx?sort=9')
+        return response
+
+    def get_total_results(self, soup):
+        element_id = 'ctl00_ContentPlaceHolderSNRMain_lblDisplaying'
+        total = re.search(
+                            r'of (\d+)',
+                            soup.find('span', attrs={'id': element_id}).string
+                        ).group(1)
+        #total = soup.find('p').string
+        return total
+
 
 class RSSeriesClient(RSClient):
 
@@ -369,48 +375,6 @@ class RSSeriesClient(RSClient):
                                 'title': details[1][2:]
                             })
         return relations
-
-    def get_total_results(self, soup):
-        element_id = 'ctl00_ContentPlaceHolderSNRMain_lblDisplaying'
-        total = re.search(
-                            r'of (\d+)',
-                            soup.find('span', attrs={'id': element_id}).string
-                        ).group(1)
-        #total = soup.find('p').string
-        self.total_results = total
-
-    def search_items(self, q=None, series=None, control_symbol=None):
-        '''
-        Retrieves basic item information from a search.
-        Results stored in self.results.
-        '''
-        self.get_advanced_items_search()
-        if q:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbKeywords'] = q
-        if series:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbSerNo'] = series
-        if control_symbol:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbIteControlSymb'] = control_symbol
-        self.br.submit()
-        self.br.select_form(nr=0)
-        self.br.submit()
-        #sort by barcode
-        self.response = self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx?sort=9')
-        self.extract_items()
-
-    def get_search_page_number(self, page):
-        self.response = self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx?page=%s' % page)
-        self.extract_items()
-
-    def get_items(self, entity_id):
-        url = 'http://www.naa.gov.au/cgi-bin/Search?Number=%s' % entity_id
-        self.get_url(url)
-        self.br.follow_link(url_regex=r'ItemSearch_Result\.aspx')
-        self.response = self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx?sort=9')
-        #self.get_total_results()
-        #self.get_url(url)
-        #self.response = self.br.open(url)
-        self.extract_items()
 
 
 class UsageError(Exception):

@@ -24,8 +24,16 @@ class TestSeriesFunctions(unittest.TestCase):
     def test_get_accumulation_dates(self):
         test_dates = {
                 'date_str': '01 Jan 1903 - 31 Dec 1938',
-                'start_date': '1903-01-01',
-                'end_date': '1938-12-31'
+                'start_date': {
+                        'date': datetime.datetime(1903, 1, 1, 0, 0),
+                        'day': True,
+                        'month': True
+                    },
+                'end_date': {
+                        'date': datetime.datetime(1938, 12, 31, 0, 0),
+                        'day': True,
+                        'month': True
+                    }
                 }
         accumulation_dates = self.rs.get_accumulation_dates('A1')
         self.assertEqual(accumulation_dates, test_dates)
@@ -33,8 +41,16 @@ class TestSeriesFunctions(unittest.TestCase):
     def test_get_contents_dates(self):
         test_dates = {
                 'date_str': '01 Jan 1890 - 31 Dec 1969',
-                'start_date': '1890-01-01',
-                'end_date': '1969-12-31'
+                'start_date': {
+                        'date': datetime.datetime(1890, 1, 1, 0, 0),
+                        'day': True,
+                        'month': True
+                    },
+                'end_date': {
+                        'date': datetime.datetime(1969, 12, 31, 0, 0),
+                        'day': True,
+                        'month': True
+                    }
                 }
         contents_dates = self.rs.get_contents_dates('A1')
         self.assertEqual(contents_dates, test_dates)

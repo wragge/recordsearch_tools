@@ -4,11 +4,13 @@ Created on 16/02/2011
 @author: tim
 '''
 import re
+from urllib import quote_plus
 from bs4 import BeautifulSoup
 import mechanize
 #import logging
 
 import utilities
+from utilities import retry
 
 #logger = logging.getLogger("mechanize")
 #logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -17,8 +19,17 @@ import utilities
 
 RS_URLS = {
         'item': 'http://www.naa.gov.au/cgi-bin/Search?O=I&Number=',
-        'series': 'http://www.naa.gov.au/cgi-bin/Search?Number='
+        'series': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
+        'agency': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
     }
+
+
+class UsageError(Exception):
+    pass
+
+
+class ServerError(Exception):
+    pass
 
 
 class RSClient:
@@ -29,18 +40,26 @@ class RSClient:
             'Mozilla/5.0 (Windows; U; Windows NT 6.0; en-US; rv:1.9.0.6')]
         self.br.set_handle_robots(False)
 
+    @retry(ServerError, tries=10, delay=1)
     def _get_url(self, url):
-        response1 = self.br.open(url)
-        # Recordsearch returns a page with a form that submits on page load.
-        # Have to make sure the session id is submitted with the form.
-        # Extract the session id.
-        session_id = re.search(r"value={(.*)}", response1.read()).group(1)
-        self.br.select_form(name="t")
-        self.br.form.set_all_readonly(False)
-        # Add session id to the form.
-        self.br.form['NAASessionID'] = '{%s}' % session_id
-        response2 = self.br.submit()
-        return response2
+        try:
+            response1 = self.br.open(url)
+            # Recordsearch returns a page with a form that submits on page load.
+            # Have to make sure the session id is submitted with the form.
+            # Extract the session id.
+            session_id = re.search(r"value={(.*)}", response1.read()).group(1)
+            self.br.select_form(name="t")
+            self.br.form.set_all_readonly(False)
+            # Add session id to the form.
+            self.br.form['NAASessionID'] = '{%s}' % session_id
+            response2 = self.br.submit()
+            return response2
+        except mechanize.HTTPError as e:
+            print e.code
+            if e.code == 503 or e.code == 504:
+                raise ServerError("Server didn't respond")
+            else:
+                raise
 
     def _get_details(self, entity_id):
         '''
@@ -49,7 +68,7 @@ class RSClient:
         if (not entity_id and self.entity_id) or (entity_id == self.entity_id):
             details = self.details
         else:
-            url = '{}{}'.format(RS_URLS[self.entity_type], entity_id)
+            url = '{}{}'.format(RS_URLS[self.entity_type], quote_plus(entity_id))
             response = self._get_url(url)
             soup = BeautifulSoup(response.read())
             details = soup.find('div', 'detailsTable')
@@ -67,7 +86,7 @@ class RSClient:
                         details.find(text=re.compile(label))
                         .parent.parent.findNextSiblings('td')[0]
                     )
-        except IndexError:
+        except (IndexError, AttributeError):
             # Sometimes the cell labels are inside an enclosing div,
             # but sometimes not. Try again assuming no div.
             try:
@@ -75,16 +94,16 @@ class RSClient:
                         details.find(text=re.compile(label))
                         .parent.findNextSiblings('td')[0]
                     )
-            except IndexError, e:
-                raise UsageError('Value not found: {}'.format(e))
+            except (IndexError, AttributeError):
+                cell = None
         return cell
 
     def _get_value(self, label, entity_id):
         cell = self._get_cell(label, entity_id)
         try:
             value = ' '.join([string for string in cell.stripped_strings])
-        except AttributeError, e:
-            raise UsageError('Value not found: {}'.format(e))
+        except AttributeError:
+            value = None
         return value
 
     def _get_formatted_dates(self, label, entity_id):
@@ -103,10 +122,48 @@ class RSClient:
             except IndexError:
                 end_date = None
         return {
-                'date_str': date_str.strip(),
+                'date_str': date_str,
                 'start_date': start_date,
                 'end_date': end_date
                 }
+
+    def _get_relations(self, label, entity_id):
+        cell = self._get_cell(label, entity_id)
+        relations = []
+        if cell is not None:
+            for relation in cell.findAll('li'):
+                try:
+                    date_str = relation.find('div', 'dates').string
+                except AttributeError:
+                    start_date = None
+                    end_date = None
+                else:
+                    date_dicts = utilities.process_date_string(date_str)
+                    # start_date = utilities.convert_date_to_iso(date_dicts[0])
+                    start_date = date_dicts[0]
+                    try:
+                        #end_date = utilities.convert_date_to_iso(date_dicts[1])
+                        end_date = date_dicts[1]
+                    except IndexError:
+                        end_date = None
+                details = [string for string in relation.find('div', 'linkagesInfo').stripped_strings]
+                try:
+                    identifier = details[0]
+                    title = details[1][2:]
+                except IndexError:
+                    identifier = details[0]
+                    title = details[0]
+                relations.append({
+                                    'date_str': date_str.strip(),
+                                    'start_date': start_date,
+                                    'end_date': end_date,
+                                    'identifier': identifier,
+                                    'title': title
+                                }
+                            )
+        else:
+            relations = None
+        return relations
 
     def _get_advanced_items_search(self):
         '''
@@ -159,7 +216,7 @@ class RSItemClient(RSClient):
 
     def get_series(self, entity_id=None):
         cell = self._get_cell('Series number', entity_id)
-        return cell.find('a').string
+        return cell.find('a').string.strip()
 
     def get_identifier(self, entity_id=None):
         return self._get_value('Item barcode', entity_id)
@@ -190,7 +247,7 @@ class RSItemClient(RSClient):
         try:
             pages = soup.find('input', attrs={'id': "Hidden3"})['value']
         except TypeError:
-            pages = 'unknown'
+            pages = '0'
         return pages
 
     def _get_details(self, entity_id):
@@ -350,37 +407,51 @@ class RSSeriesClient(RSClient):
                 digitised = None
         return digitised
 
-    def _get_relations(self, label, entity_id):
-        cell = self._get_cell(label, entity_id)
-        relations = []
-        for relation in cell.findAll('li'):
-            try:
-                date_str = relation.find('div', 'dates').string
-            except AttributeError:
-                start_date = None
-                end_date = None
-            else:
-                date_dicts = utilities.process_date_string(date_str)
-                # start_date = utilities.convert_date_to_iso(date_dicts[0])
-                start_date = date_dicts[0]
-                try:
-                    #end_date = utilities.convert_date_to_iso(date_dicts[1])
-                    end_date = date_dicts[1]
-                except IndexError:
-                    end_date = None
-            details = [string for string in relation.find('div', 'linkagesInfo').stripped_strings]
-            relations.append({
-                                'date_str': date_str.strip(),
-                                'start_date': start_date,
-                                'end_date': end_date,
-                                'identifier': details[0],
-                                'title': details[1][2:]
-                            })
-        return relations
 
+class RSAgencyClient(RSClient):
 
-class UsageError(Exception):
-    pass
+    def __init__(self):
+        self._create_browser()
+        self.entity_type = 'agency'
+        self.entity_id = None
+        self.details = None
+
+    def get_summary(self, entity_id=None):
+        title = self.get_title(entity_id)
+        return {
+                    'title': title
+            }
+
+    def get_identifier(self, entity_id=None):
+        return self._get_value('Agency number', entity_id)
+
+    def get_title(self, entity_id=None):
+        return self._get_value('Title', entity_id)
+
+    def get_institution_title(self, entity_id=None):
+        return self._get_value('Institution title', entity_id)
+
+    def get_dates(self, entity_id=None):
+        return self._get_formatted_dates('Date range', entity_id)
+
+    def get_functions(self, entity_id=None):
+        return self._get_relations('Function', entity_id)
+
+    def get_previous_agencies(self, entity_id=None):
+        return self._get_relations('Previous agency', entity_id)
+
+    def get_subsequent_agencies(self, entity_id=None):
+        return self._get_relations('Subsequent agency', entity_id)
+
+    def get_superior_agencies(self, entity_id=None):
+        return self._get_relations('Superior agency', entity_id)
+
+    def get_controlled_agencies(self, entity_id=None):
+        return self._get_relations('Previous agency', entity_id)
+
+    def get_associated_people(self, entity_id=None):
+        return self._get_relations('Persons associated', entity_id)
+
 
 if __name__ == "__main__":
     ''' Example: perform search for documents by discipline and retrieve word counts for each'''

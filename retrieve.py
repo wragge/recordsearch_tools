@@ -21,6 +21,7 @@ RS_URLS = {
         'item': 'http://www.naa.gov.au/cgi-bin/Search?O=I&Number=',
         'series': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
         'agency': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
+        'search_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx'
     }
 
 
@@ -110,22 +111,10 @@ class RSClient:
         try:
             date_str = self._get_value(label, entity_id)
         except AttributeError:
-            start_date = None
-            end_date = None
+            dates = {'date_str': date_str, 'start_date': None, 'end_date': None}
         else:
-            date_dicts = utilities.process_date_string(date_str)
-            #start_date = utilities.convert_date_to_iso(date_dicts[0])
-            start_date = date_dicts[0]
-            try:
-                #end_date = utilities.convert_date_to_iso(date_dicts[1])
-                end_date = date_dicts[1]
-            except IndexError:
-                end_date = None
-        return {
-                'date_str': date_str,
-                'start_date': start_date,
-                'end_date': end_date
-                }
+            dates = utilities.process_date_string(date_str)
+        return dates
 
     def _get_relations(self, label, entity_id):
         cell = self._get_cell(label, entity_id)
@@ -133,19 +122,11 @@ class RSClient:
         if cell is not None:
             for relation in cell.findAll('li'):
                 try:
-                    date_str = relation.find('div', 'dates').string
+                    date_str = relation.find('div', 'dates').string.strip()
                 except AttributeError:
-                    start_date = None
-                    end_date = None
+                    dates = {'date_str': date_str, 'start_date': None, 'end_date': None}
                 else:
-                    date_dicts = utilities.process_date_string(date_str)
-                    # start_date = utilities.convert_date_to_iso(date_dicts[0])
-                    start_date = date_dicts[0]
-                    try:
-                        #end_date = utilities.convert_date_to_iso(date_dicts[1])
-                        end_date = date_dicts[1]
-                    except IndexError:
-                        end_date = None
+                    dates = utilities.process_date_string(date_str)
                 details = [string for string in relation.find('div', 'linkagesInfo').stripped_strings]
                 try:
                     identifier = details[0]
@@ -154,9 +135,9 @@ class RSClient:
                     identifier = details[0]
                     title = details[0]
                 relations.append({
-                                    'date_str': date_str.strip(),
-                                    'start_date': start_date,
-                                    'end_date': end_date,
+                                    'date_str': dates['date_str'],
+                                    'start_date': dates['start_date'],
+                                    'end_date': dates['end_date'],
                                     'identifier': identifier,
                                     'title': title
                                 }
@@ -276,33 +257,6 @@ class RSItemClient(RSClient):
         else:
             digitised = False
         return digitised
-
-    def search_items(self, q=None, series=None, control_symbol=None):
-        '''
-        Retrieves basic item information from a search.
-        '''
-        self.get_advanced_items_search()
-        if q:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbKeywords'] = q
-        if series:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbSerNo'] = series
-        if control_symbol:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbIteControlSymb'] = control_symbol
-        self.br.submit()
-        self.br.select_form(nr=0)
-        self.br.submit()
-        #sort by barcode
-        response = self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx?sort=9')
-        return response
-
-    def get_total_results(self, soup):
-        element_id = 'ctl00_ContentPlaceHolderSNRMain_lblDisplaying'
-        total = re.search(
-                            r'of (\d+)',
-                            soup.find('span', attrs={'id': element_id}).string
-                        ).group(1)
-        #total = soup.find('p').string
-        return total
 
 
 class RSSeriesClient(RSClient):
@@ -451,6 +405,111 @@ class RSAgencyClient(RSClient):
 
     def get_associated_people(self, entity_id=None):
         return self._get_relations('Persons associated', entity_id)
+
+
+class RSSearchClient(RSClient):
+
+    def __init__(self):
+        self._create_browser()
+        self.total_results = None
+        self.results = None
+        self.page = None
+        self.results_per_page = None
+
+    def search_items(self, page=None, results_per_page=None, sort=None, **kwargs):
+        '''
+        Retrieves basic item information from a search.
+        '''
+        if kwargs:
+            self._prepare_search(**kwargs)
+            response = self.br.submit()
+            html = response.read()
+            items = self._process_page(html)
+            self.page = 1
+            self.results_per_page = 20
+            self.total_results = self.get_total_results(html)
+        elif self.results is not None:
+            if not page and not results_per_page:
+                items = self.results
+            elif not page and results_per_page:
+                self.br.select_form(name="aspnetForm")
+                self.br.form['ctl00$ContentPlaceHolderSNRMain$ddlResultsPerPage'] = [str(results_per_page)]
+                response = self.br.submit()
+                html = response.read()
+                items = self._process_page(html)
+                self.results_per_page = results_per_page
+            else:
+                response = self.br.open('{}?page={}'.format(RS_URLS['search_results'], int(page) - 1))
+                html = response.read()
+                items = self._process_page(html)
+                self.page = page
+        self.results = items
+
+        return {
+                    'total_results': self.total_results,
+                    'page': self.page,
+                    'results_per_page': self.results_per_page,
+                    'results': items
+                }
+
+    def _prepare_search(self, **kwargs):
+        self._get_advanced_items_search()
+        if 'q' in kwargs:
+            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbKeywords'] = kwargs['q']
+        if 'series' in kwargs:
+            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbSerNo'] = kwargs['series']
+        if 'control_symbol' in kwargs:
+            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbIteControlSymb'] = kwargs['control_symbol']
+        self.br.submit()
+        self.br.select_form(nr=0)
+
+    def _process_page(self, html):
+            soup = BeautifulSoup(html)
+            results = soup.find(
+                        'table',
+                        attrs={'id': 'ctl00_ContentPlaceHolderSNRMain_tblItemDetails'}
+                        ).findAll('tr')[1:]
+            items = []
+            for row in results:
+                item = self._process_row(row)
+                items.append(item)
+            return items
+
+    def _process_row(self, row):
+        item = {}
+        cells = row.findAll('td')
+        item['series'] = cells[1].string.strip()
+        item['control_symbol'] = cells[2].a.string.strip()
+        item['title'] = cells[3].contents[0].string.strip()
+        access_string = cells[3].find('div', 'CombinedTitleBottomLeft').string
+        item['access_status'] = re.search(r'Access status: (\w+)', access_string).group(1)
+        location_string = cells[3].find('div', 'CombinedTitleBottomRight').string
+        item['location'] = re.search(r'Location: (\w+)', location_string).group(1)
+        date_str = cells[4].string.strip()
+        item['date_range'] = utilities.process_date_string(date_str)
+        barcode = cells[6].string.strip()
+        if cells[5].find('a') is not None:
+            item['digitised_status'] = True
+            rs_item = RSItemClient()
+            item['digitised_pages'] = rs_item.get_digitised_pages(barcode)
+        else:
+            item['digitised_status'] = False
+            item['digitised_pages'] = 0
+        item['identifier'] = barcode
+        return item
+
+    def get_total_results(self, html=None):
+        if html:
+            soup = BeautifulSoup(html)
+            element_id = 'ctl00_ContentPlaceHolderSNRMain_lblDisplaying'
+            print soup
+            total = re.search(
+                                r'of (\d+)',
+                                soup.find('span', attrs={'id': element_id}).string
+                            ).group(1)
+        else:
+            total = self.total_results
+        return total
 
 
 if __name__ == "__main__":

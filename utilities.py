@@ -77,10 +77,13 @@ def process_date_string(date_string):
     and booleans indicating if values for month and day exist.
     '''
     dates = date_string.split('-')
-    results = []
-    for this_date in dates:
-        results.append(parse_date(this_date.strip()))
-    return results
+    if dates:
+        start_date = parse_date(dates[0].strip())
+        try:
+            end_date = parse_date(dates[1].strip())
+        except IndexError:
+            end_date = None
+    return {'date_str': date_string, 'start_date': start_date, 'end_date': end_date}
 
 
 def convert_date_to_iso(date_dict):

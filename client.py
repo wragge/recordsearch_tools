@@ -511,21 +511,3 @@ class RSSearchClient(RSClient):
             total = self.total_results
         return total
 
-
-if __name__ == "__main__":
-    ''' Example: perform search for documents by discipline and retrieve word counts for each'''
-    rs = RSClient()
-    #reference = rs.get_reference('3445411')
-    #print reference
-    #pages = rs.get_page_total('3445411')
-    #print '%s, %s' % (reference['series'], reference['item'])
-    #print 'Digitised?: %s' % reference['digitised']
-    #print '%s pages' % pages
-    #series = rs.get_series_summary('B13')
-    #print series
-    rs.get_number_digitised('B13')
-    #rs.get_items('E752')
-    #rs.search_items(control_symbol='kelly a*', series='B2455')
-    #print rs.results
-    #rs.get_total_results()
-    #print rs.total_results

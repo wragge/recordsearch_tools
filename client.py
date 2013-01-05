@@ -24,6 +24,70 @@ RS_URLS = {
         'search_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx'
     }
 
+ITEM_FORM = {
+    'kw': 'ctl00$ContentPlaceHolderSNRMain$txbKeywords',
+    'kw_options': 'ctl00$ContentPlaceHolderSNRMain$ddlUsingKeywords',
+    'kw_exclude': 'ctl00$ContentPlaceHolderSNRMain$txbExKeywords',
+    'kw_exclude_options': 'ctl00$ContentPlaceHolderSNRMain$ddlUsingExKwd',
+    # Set to 'on' to search in item notes
+    'search_notes': 'ctl00$ContentPlaceHolderSNRMain$cbxKwdTitleNotes',
+    'series': 'ctl00$ContentPlaceHolderSNRMain$txbSerNo',
+    'series_exclude': 'ctl00$ContentPlaceHolderSNRMain$txbExSerNo',
+    'control': 'ctl00$ContentPlaceHolderSNRMain$txbIteControlSymb',
+    'control_exclude': 'ctl00$ContentPlaceHolderSNRMain$txbExIteControlSymb',
+    'barcode': 'ctl00$ContentPlaceHolderSNRMain$txbIteBarcode',
+    'date_from': 'ctl00$ContentPlaceHolderSNRMain$txbDateFrom',
+    'date_to': 'ctl00$ContentPlaceHolderSNRMain$txbDateTo',
+    # Select lists (options below)
+    'format': 'ctl00$ContentPlaceHolderSNRMain$ddlPhysFormat',
+    'format_exclude': 'ctl00$ContentPlaceHolderSNRMain$ddlExPhysFormat',
+    'location': 'ctl00$ContentPlaceHolderSNRMain$ddlLocation',
+    'location_exclude': 'ctl00$ContentPlaceHolderSNRMain$ddlExLocation',
+    'access': 'ctl00$ContentPlaceHolderSNRMain$ddlAccessStatus',
+    'access_exclude': 'ctl00$ContentPlaceHolderSNRMain$ddlExAccessStatus',
+    # Checkbox
+    'digital': 'ctl00_ContentPlaceHolderSNRMain_cbxDigitalCopies'
+}
+
+KW_OPTIONS = [
+    'ALL',
+    'ANY',
+    'EXACT'
+]
+
+FORMATS = [
+    'Paper files and documents',
+    'Index cards',
+    'Bound volumes',
+    'Cartographic records',
+    'Photographs',
+    'Microforms',
+    'Audio-visual records',
+    'Audio records',
+    'Electronic records',
+    '3-dimensional records',
+    'Scientific specimens',
+    'Textiles'
+]
+
+LOCATIONS = [
+    'NAT,ACT',
+    'Adelaide',
+    'Australian War Memorial',
+    'Brisbane',
+    'Darwin',
+    'Hobart',
+    'Melbourne',
+    'Perth',
+    'Sydney'
+]
+
+ACCESS = [
+    'OPEN',
+    'OWE',
+    'CLOSED',
+    'NYE'
+]
 
 class UsageError(Exception):
     pass
@@ -454,12 +518,8 @@ class RSSearchClient(RSClient):
 
     def _prepare_search(self, **kwargs):
         self._get_advanced_items_search()
-        if 'q' in kwargs:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbKeywords'] = kwargs['q']
-        if 'series' in kwargs:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbSerNo'] = kwargs['series']
-        if 'control_symbol' in kwargs:
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$txbIteControlSymb'] = kwargs['control_symbol']
+        for key, value in kwargs.items():
+            self.br.form[ITEM_FORM[key]] = value
         self.br.submit()
         self.br.select_form(nr=0)
 
@@ -502,7 +562,6 @@ class RSSearchClient(RSClient):
         if html:
             soup = BeautifulSoup(html)
             element_id = 'ctl00_ContentPlaceHolderSNRMain_lblDisplaying'
-            print soup
             total = re.search(
                                 r'of (\d+)',
                                 soup.find('span', attrs={'id': element_id}).string

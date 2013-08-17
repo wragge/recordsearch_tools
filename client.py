@@ -1,8 +1,3 @@
-'''
-Created on 16/02/2011
-
-@author: tim
-'''
 import re
 from urllib import quote_plus
 from bs4 import BeautifulSoup
@@ -50,7 +45,7 @@ ITEM_FORM = {
             'type': 'select'
             },
     'series': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbSerNo',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbSerNo',
             'type': 'input'
             },
     'series_exclude': {
@@ -317,7 +312,7 @@ class RSItemClient(RSClient):
         control_symbol = self.get_control_symbol(entity_id)
         series = self.get_series(entity_id)
         identifier = self.get_identifier(entity_id)
-        contents_dates = self.get_contents_dates(entity_id)
+        contents_dates = self.get_contents_dates(entity_id, date_format)
         digitised_status = self.get_digitised_status(entity_id)
         digitised_pages = self.get_digitised_pages(entity_id)
         access_status = self.get_access_status(entity_id)
@@ -484,18 +479,18 @@ class RSSeriesClient(RSClient):
         Get the number of digitised files in a series.
         '''
         self._get_advanced_items_search()
-        self.br.form['ctl00$ContentPlaceHolderSNRMain$txbSerNo'] = entity_id
-        self.br.form.find_control('ctl00$ContentPlaceHolderSNRMain$cbxDigitalCopies').items[0].selected = True
+        self.br.form['ctl00$ContentPlaceHolderSNR$txbSerNo'] = entity_id
+        self.br.form.find_control('ctl00$ContentPlaceHolderSNR$cbxDigitalCopies').items[0].selected = True
         self.br.submit()
         self.br.select_form(nr=0)
         response = self.br.submit()
         soup = BeautifulSoup(response.read())
         try:
-            displaying = soup.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNRMain_lblDisplaying'}).string
+            displaying = soup.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblDisplaying'}).string
         except AttributeError:
             # Element not found
             # If more than 20000 results, RecordSearch gives you a warning.
-            if soup.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNRMain_lblToManyRecordsError'}):
+            if soup.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblToManyRecordsError'}):
                 digitised = '20000+'
             else:
                 digitised = None

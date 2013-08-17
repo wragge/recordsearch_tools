@@ -58,7 +58,7 @@ class TestSeriesFunctions(unittest.TestCase):
     def test_get_number_described(self):
         results = {
             'described_note': 'All items from this series are entered on RecordSearch.',
-            'described_number': '64439'
+            'described_number': '64450'
         }
         items_described = self.rs.get_number_described('A1')
         self.assertEqual(items_described, results)

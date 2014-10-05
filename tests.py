@@ -1,5 +1,5 @@
 import unittest
-import retrieve
+import client
 import utilities
 import datetime
 
@@ -7,7 +7,7 @@ import datetime
 class TestSeriesFunctions(unittest.TestCase):
 
     def setUp(self):
-        self.rs = retrieve.RSSeriesClient()
+        self.rs = client.RSSeriesClient()
 
     def test_get_identifier(self):
         identifier = self.rs.get_identifier('A1')
@@ -58,7 +58,7 @@ class TestSeriesFunctions(unittest.TestCase):
     def test_get_number_described(self):
         results = {
             'described_note': 'All items from this series are entered on RecordSearch.',
-            'described_number': '64450'
+            'described_number': '64452'
         }
         items_described = self.rs.get_number_described('A1')
         self.assertEqual(items_described, results)
@@ -67,7 +67,7 @@ class TestSeriesFunctions(unittest.TestCase):
 class TestItemFunctions(unittest.TestCase):
 
     def setUp(self):
-        self.rs = retrieve.RSItemClient()
+        self.rs = client.RSItemClient()
 
     def test_get_title(self):
         test_title = (
@@ -85,18 +85,25 @@ class TestItemFunctions(unittest.TestCase):
 
 class TestUtilityFunctions(unittest.TestCase):
 
-    def test_process_date(self):
+    def test_parse_date(self):
         cases = [
-                    ('2 June 1884', [{'date': datetime.datetime(1884, 6, 2), 'day': True, 'month': True}]),
-                    ('03 Jul 1921', [{'date': datetime.datetime(1921, 7, 3), 'day': True, 'month': True}]),
-                    ('13 Jul. 1921', [{'date': datetime.datetime(1921, 7, 13), 'day': True, 'month': True}]),
-                    ('Dec 1778', [{'date': datetime.datetime(1778, 12, 1), 'day': False, 'month': True}]),
-                    ('1962', [{'date': datetime.datetime(1962, 1, 1), 'day': False, 'month': False}]),
+                    ('2 June 1884', {'date': datetime.datetime(1884, 6, 2), 'day': True, 'month': True}),
+                    ('03 Jul 1921', {'date': datetime.datetime(1921, 7, 3), 'day': True, 'month': True}),
+                    ('13 Jul. 1921', {'date': datetime.datetime(1921, 7, 13), 'day': True, 'month': True}),
+                    ('Dec 1778', {'date': datetime.datetime(1778, 12, 1), 'day': False, 'month': True}),
+                    ('1962', {'date': datetime.datetime(1962, 1, 1), 'day': False, 'month': False}),
+                ]
+        for case in cases:
+            self.assertEqual(utilities.parse_date(case[0]), case[1])
+
+    def test_process_date_string(self):
+        cases = [
                     ('2 June 1884 - Sep 1884',
-                        [
-                            {'date': datetime.datetime(1884, 6, 2), 'day': True, 'month': True},
-                            {'date': datetime.datetime(1884, 9, 1), 'day': False, 'month': True},
-                        ]
+                        {
+                            'date_str': '2 June 1884 - Sep 1884',
+                            'start_date': {'date': datetime.datetime(1884, 6, 2), 'day': True, 'month': True},
+                            'end_date': {'date': datetime.datetime(1884, 9, 1), 'day': False, 'month': True},
+                        }
                     ),
                 ]
         for case in cases:

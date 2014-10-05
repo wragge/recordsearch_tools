@@ -1,16 +1,9 @@
 import re
 from urllib import quote_plus
-from bs4 import BeautifulSoup
-import mechanize
-#import logging
+from robobrowser import RoboBrowser
 
 import utilities
 from utilities import retry
-
-#logger = logging.getLogger("mechanize")
-#logger.addHandler(logging.StreamHandler(sys.stdout))
-#logger.setLevel(logging.DEBUG)
-
 
 RS_URLS = {
         'item': 'http://www.naa.gov.au/cgi-bin/Search?O=I&Number=',
@@ -22,26 +15,26 @@ RS_URLS = {
 
 ITEM_FORM = {
     'kw': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbKeywords',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbKeywords',
             'type': 'input',
             },
     'kw_options': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$ddlUsingKeywords',
+            'id': 'ctl00$ContentPlaceHolderSNR$ddlUsingKeywords',
             'type': 'select'
             },
     'kw_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbExKeywords',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbExKeywords',
             'type': 'input'
             },
     'kw_exclude_options': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$ddlUsingExKwd',
+            'id': 'ctl00$ContentPlaceHolderSNR$ddlUsingExKwd',
             'type': 'select'
             },
     # Set to 'on' to search in item notes
     # It's a checkbox, but uses Javascript to set text value.
     # Pretend it's a select for validation purposes.
     'search_notes': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$cbxKwdTitleNotes',
+            'id': 'ctl00$ContentPlaceHolderSNR$cbxKwdTitleNotes',
             'type': 'select'
             },
     'series': {
@@ -49,57 +42,57 @@ ITEM_FORM = {
             'type': 'input'
             },
     'series_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbExSerNo',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbExSerNo',
             'type': 'input'
             },
     'control': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbIteControlSymb',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbIteControlSymb',
             'type': 'input'
             },
     'control_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbExIteControlSymb',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbExIteControlSymb',
             'type': 'input'
             },
     'barcode': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbIteBarcode',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbIteBarcode',
             'type': 'input'
             },
     'date_from': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbDateFrom',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbDateFrom',
             'type': 'input'
             },
     'date_to': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$txbDateTo',
+            'id': 'ctl00$ContentPlaceHolderSNR$txbDateTo',
             'type': 'input'
             },
     # Select lists (options below)
     'formats': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$ddlPhysFormat',
+            'id': 'ctl00$ContentPlaceHolderSNR$ddlPhysFormat',
             'type': 'select'
             },
     'formats_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$ddlExPhysFormat',
+            'id': 'ctl00$ContentPlaceHolderSNR$ddlExPhysFormat',
             'type': 'select'
             },
     'locations': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$ddlLocation',
+            'id': 'ctl00$ContentPlaceHolderSNR$ddlLocation',
             'type': 'select'
             },
     'locations_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$ddlExLocation',
+            'id': 'ctl00$ContentPlaceHolderSNR$ddlExLocation',
             'type': 'select'
             },
     'access': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$ddlAccessStatus',
+            'id': 'ctl00$ContentPlaceHolderSNR$ddlAccessStatus',
             'type': 'select'
             },
     'access_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNRMain$ddlExAccessStatus',
+            'id': 'ctl00$ContentPlaceHolderSNR$ddlExAccessStatus',
             'type': 'select'
             },
     # Checkbox
     'digital': {
-            'id': 'ctl00_ContentPlaceHolderSNRMain_cbxDigitalCopies',
+            'id': 'ctl00_ContentPlaceHolderSNR_cbxDigitalCopies',
             'type': 'checkbox'
             }
 }
@@ -148,44 +141,29 @@ ACCESS = [
 class UsageError(Exception):
     pass
 
-
 class ServerError(Exception):
     pass
 
+class RSClient():
 
-class RSClient:
+    def __init__(self):
+        self._create_browser()
 
     def _create_browser(self):
-        self.br = mechanize.Browser()
-        self.br.addheaders = [('User-agent',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_2) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.52 Safari/537.17')]
-        self.br.set_handle_robots(False)
-        self.br.set_handle_equiv(True)
-        self.br.set_handle_gzip(True)
-        self.br.set_handle_redirect(True)
-        self.br.set_handle_referer(True)
-        self.br.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), max_time=1)
+        url = 'http://recordsearch.naa.gov.au/scripts/Logon.asp?N=guest'
+        self.br = RoboBrowser(parser='lxml')
+        self.br.open(url)
+        form = self.br.get_form(id='t')
+        self.br.submit_form(form)
 
-    @retry(ServerError, tries=10, delay=1)
-    def _get_url(self, url):
-        try:
-            response1 = self.br.open(url)
-            # Recordsearch returns a page with a form that submits on page load.
-            # Have to make sure the session id is submitted with the form.
-            # Extract the session id.
-            session_id = re.search(r"value={(.*)}", response1.read()).group(1)
-            self.br.select_form(name="t")
-            self.br.form.set_all_readonly(False)
-            # Add session id to the form.
-            self.br.form['NAASessionID'] = '{%s}' % session_id
-            response2 = self.br.submit()
-            return response2
-        except mechanize.HTTPError as e:
-            print e.code
-            if e.code == 503 or e.code == 504:
-                raise ServerError("Server didn't respond")
-            else:
-                raise
+    def _open_url(self, url):
+        '''
+        RecordSearch inserts a page that needs to have an embedded form
+        automatically submitted before you get what you actually want.
+        '''
+        self.br.open(url)
+        form = self.br.get_form(id='t')
+        self.br.submit_form(form)
 
     def _get_details(self, entity_id):
         '''
@@ -195,9 +173,8 @@ class RSClient:
             details = self.details
         else:
             url = '{}{}'.format(RS_URLS[self.entity_type], quote_plus(entity_id))
-            response = self._get_url(url)
-            soup = BeautifulSoup(response.read())
-            details = soup.find('div', 'detailsTable')
+            self._open_url(url)
+            details = self.br.find('div', 'detailsTable')
             if details:
                 self.entity_id = entity_id
                 self.details = details
@@ -287,15 +264,25 @@ class RSClient:
             relations = None
         return relations
 
-    def _get_advanced_items_search(self):
+    def get_digitised_pages(self, entity_id=None):
         '''
-        Opens up the items advanced search form.
-        Form fields can then be filled using self.br.form.
+        Returns the number of pages (images) in a digitised file.
+        Note that you don't need a session id to access these pages,
+        so there's no need to go through get_url().
         '''
-        url = 'http://recordsearch.naa.gov.au/scripts/Logon.asp?N=guest'
-        self._get_url(url)
+        url = 'http://recordsearch.naa.gov.au/scripts/Imagine.asp?B={}&I=1&SE=1'.format(entity_id)
+        br = RoboBrowser(parser='lxml')
+        br.open(url)
+        try:
+            pages = br.find('input', attrs={'id': "Hidden3"})['value']
+        except TypeError:
+            pages = '0'
+        return pages
+
+    def _get_advanced_search_form(self):
         self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchItems.aspx')
-        self.br.select_form(name="aspnetForm")
+        search_form = self.br.get_form(id="aspnetForm")
+        return search_form
 
 
 class RSItemClient(RSClient):
@@ -357,21 +344,6 @@ class RSItemClient(RSClient):
     def get_contents_dates(self, entity_id=None, date_format='obj'):
         return self._get_formatted_dates('Contents date range', entity_id, date_format)
 
-    def get_digitised_pages(self, entity_id=None):
-        '''
-        Returns the number of pages (images) in a digitised file.
-        Note that you don't need a session id to access these pages,
-        so there's no need to go through get_url().
-        '''
-        url = 'http://recordsearch.naa.gov.au/scripts/Imagine.asp?B=%s&I=1&SE=1' % entity_id
-        response = self.br.open(url)
-        soup = BeautifulSoup(response.read())
-        try:
-            pages = soup.find('input', attrs={'id': "Hidden3"})['value']
-        except TypeError:
-            pages = '0'
-        return pages
-
     def _get_details(self, entity_id):
         '''
         Given an id retrieve the element containing the item details.
@@ -381,19 +353,18 @@ class RSItemClient(RSClient):
             details = self.details
         else:
             url = '{}{}'.format(RS_URLS[self.entity_type], entity_id)
-            response = self._get_url(url)
-            soup = BeautifulSoup(response.read())
-            details = soup.find('div', 'detailsTable')
+            self._open_url(url)
+            details = self.br.find('div', class_='detailsTable')
             if details:
                 self.entity_id = entity_id
                 self.details = details
-                self.digitised = self._is_digitised(soup)
+                self.digitised = self._is_digitised()
             else:
-                raise UsageError('No details found for {}'.format(id))
+                raise UsageError('No details found for {}'.format(entity_id))
         return details
 
-    def _is_digitised(self, soup):
-        if soup.find(text=re.compile("View digital copy")):
+    def _is_digitised(self):
+        if self.br.find(text=re.compile("View digital copy")):
             digitised = True
         else:
             digitised = False
@@ -411,10 +382,10 @@ class RSSeriesClient(RSClient):
     def get_summary(self, entity_id=None, date_format='obj'):
         title = self.get_title(entity_id)
         contents_dates = self.get_contents_dates(entity_id, date_format)
-        items_described = self.get_number_described(entity_id)
-        items_digitised = self.get_number_digitised(entity_id)
         recording_agencies = self.get_recording_agencies(entity_id, date_format)
         locations = self.get_quantity_location(entity_id)
+        items_described = self.get_number_described(entity_id)
+        items_digitised = self.get_number_digitised(entity_id)
         return {'identifier': entity_id,
                 'title': title,
                 'contents_dates': contents_dates,
@@ -478,19 +449,19 @@ class RSSeriesClient(RSClient):
         '''
         Get the number of digitised files in a series.
         '''
-        self._get_advanced_items_search()
-        self.br.form['ctl00$ContentPlaceHolderSNR$txbSerNo'] = entity_id
-        self.br.form.find_control('ctl00$ContentPlaceHolderSNR$cbxDigitalCopies').items[0].selected = True
-        self.br.submit()
-        self.br.select_form(nr=0)
-        response = self.br.submit()
-        soup = BeautifulSoup(response.read())
+        search_form = self._get_advanced_search_form()
+        search_form['ctl00$ContentPlaceHolderSNR$txbSerNo'] = entity_id
+        search_form['ctl00$ContentPlaceHolderSNR$cbxDigitalCopies'] = ['on']
+        submit = search_form['ctl00$ContentPlaceHolderSNR$btnSearch']
+        self.br.submit_form(search_form, submit=submit)
+        running_form = self.br.get_form(id='Form1')
+        self.br.submit_form(running_form)
         try:
-            displaying = soup.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblDisplaying'}).string
+            displaying = self.br.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblDisplaying'}).string
         except AttributeError:
             # Element not found
             # If more than 20000 results, RecordSearch gives you a warning.
-            if soup.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblToManyRecordsError'}):
+            if self.br.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblToManyRecordsError'}):
                 digitised = '20000+'
             else:
                 digitised = None
@@ -559,32 +530,37 @@ class RSSearchClient(RSItemClient):
         self.entity_id = None
         self.digitised = None
 
+    def _get_name_search_form(self):
+        url = 'http://recordsearch.naa.gov.au/Scripts/SessionManagement/SessionManager.asp?Module=NameSearch&Location=home'
+        self._open_url(url)
+        search_form = self.br.get_form(id="NameSearchForm")
+        return search_form
+
     def search_names(self, page=None, results_per_page=None, sort=None, **kwargs):
         surname = kwargs.get('surname')
         other_names = kwargs.get('other_names', '')
         service_number = kwargs.get('service_number', '')
-        self._get_name_search_form()
-        self.br.form['txtFamilyName'] = surname
-        self.br.form['ddlCategory'] = ['5']
-        self.br.submit()
-        self.br.select_form(nr=0)
-        self.br.submit()
-        self.br.select_form('NameSearchResultForm')
+        search_form = self._get_name_search_form()
+        search_form['txtFamilyName'].value = surname
+        search_form['ddlCategory'].value = '5'
+        submit = search_form['btnSearch']
+        self.br.submit_form(search_form, submit=submit)
+        running_form = self.br.get_form(attrs={'name': 'Form1'})
+        self.br.submit_form(running_form)
+        ns_form = self.br.get_form(id='NameSearchResultForm')
         if other_names or service_number:
-            self.br.submit('btnRefineSearch')
-            self.br.select_form('RefineNameSearchForm2')
-            self.br.form['txtGivenName'] = other_names
-            self.br.form['txtServiceNumber'] = service_number
-            self.br.submit('btnSearch')
+            self.br.submit_form(ns_form, submit=ns_form['btnRefineSearch'])
+            refine_form = self.br.get_form('RefineNameSearchForm2')
+            refine_form['txtGivenName'].value = other_names
+            refine_form['txtServiceNumber'].value = service_number
+            self.br.submit_form(refine_form, refine_form['btnSearch'])
             # Returns a 'search running' page, submit again to move on.
-            self.br.select_form(nr=0)
-            self.br.submit()
-            self.br.select_form('NameSearchResultForm')
-        response = self.br.submit('btnDisplay')
-        html = self._get_html(response, 'ns_results', page, sort, results_per_page)
-        items = self._process_page(html)
-        self.results = items
-
+            running_form = self.br.get_form(attrs={'name': 'Form1'})
+            self.br.submit_form(running_form)
+            ns_form = self.br.get_form(id='NameSearchResultForm')
+        self.br.submit_form(ns_form, submit=ns_form['btnDisplay'])
+        self._get_html('ns_results', page, sort, results_per_page)
+        items = self._process_page()
         return {
                     'total_results': self.total_results,
                     'page': self.page,
@@ -592,23 +568,19 @@ class RSSearchClient(RSItemClient):
                     'results': items
                 }
 
-    def search_items(self, page=None, results_per_page=None, sort=None, **kwargs):
-        '''
-        Retrieves basic item information from a search.
-        '''
+
+    def search(self, page=None, results_per_page=None, sort=None, **kwargs):
         if kwargs:
             self._prepare_search(**kwargs)
-            response = self.br.submit()
-            html = self._get_html(response, page, sort, results_per_page)
-            items = self._process_page(html)
+            self._get_html('search_results', page, sort, results_per_page)
+            items = self._process_page()
         elif self.results is not None:
             if not page and not results_per_page and not sort:
                 items = self.results
             else:
-                html = self._get_html(response, 'search_results', page, sort, results_per_page)
-                items = self._process_page(html)
+                self._get_html('search_results', page, sort, results_per_page)
+                items = self._process_page()
         self.results = items
-
         return {
                     'total_results': self.total_results,
                     'page': self.page,
@@ -616,57 +588,58 @@ class RSSearchClient(RSItemClient):
                     'results': items
                 }
 
-    def _get_name_search_form(self):
-        url = 'http://recordsearch.naa.gov.au/scripts/Logon.asp?N=guest'
-        self._get_url(url)
-        self.br.open('http://recordsearch.naa.gov.au/Scripts/SessionManagement/SessionManager.asp?Module=NameSearch&Location=home')
-        self.br.select_form(nr=0)
-        self.br.submit()
-        self.br.select_form(name="NameSearchForm")
-
-    def _get_html(self, response, search_type, page, sort, results_per_page):
+    def _get_html(self, search_type, page, sort, results_per_page):
+        '''
+        Sort options:
+            1 -- series and control symbol,
+            3 -- title,
+            5 -- start date,
+            7 -- digitised images first,
+            12 -- pdfs first,
+            9 -- barcode,
+            11 -- av first
+        '''
         if results_per_page:
-            self.br.select_form(name="aspnetForm")
-            self.br.form['ctl00$ContentPlaceHolderSNRMain$ddlResultsPerPage'] = [str(results_per_page)]
-            response = self.br.submit()
+            form = self.br.get_form(id="aspnetForm")
+            form['ctl00$ContentPlaceHolderSNR$ddlResultsPerPage'].value = str(results_per_page)
+            submit = form['ctl00$ContentPlaceHolderSNR$btnGo']
+            self.br.submit_form(form, submit=submit)
             self.results_per_page = results_per_page
         if sort:
-            response = self.br.open('{}?sort={}'.format(RS_URLS[search_type], sort))
+            self.br.open('{}?sort={}'.format(RS_URLS[search_type], sort))
         if page:
-            response = self.br.open('{}?page={}'.format(RS_URLS[search_type], int(page) - 1))
+            self.br.open('{}?page={}'.format(RS_URLS[search_type], int(page) - 1))
             self.page = page
-        html = response.read()
-        return html
 
     def _prepare_search(self, **kwargs):
-        self._get_advanced_items_search()
+        search_form = self._get_advanced_search_form()
         for key, value in kwargs.items():
-            self.br.form[ITEM_FORM[key]['id']] = value
-        self.br.submit()
-        self.br.select_form(nr=0)
+            search_form[ITEM_FORM[key]['id']].value = value
+        submit = search_form['ctl00$ContentPlaceHolderSNR$btnSearch']
+        self.br.submit_form(search_form, submit=submit)
+        running_form = self.br.get_form(id='Form1')
+        self.br.submit_form(running_form)
 
-    def _process_page(self, html):
-            soup = BeautifulSoup(html)
-            # This will fail if there's only one result
-            # Also if there's more than 20000 results
-            if soup.find(id='ctl00_ContentPlaceHolderSNRMain_lblToManyRecordsError') is not None:
-                # Too many results
-                pass
-            elif soup.find(id=re.compile('tblItemDetails$')) is not None:
-                items = self._process_list(soup)
-                self.total_results = self.get_total_results(html)
-            elif soup.find(id=re.compile('ucItemDetails_phDetailsView$')) is not None:
-                self.details = soup.find('div', 'detailsTable')
-                items = [self.get_summary()]
-                self.total_results = 1
+    def _process_page(self):
+        # This will fail if there's only one result
+        # Also if there's more than 20000 results
+        if self.br.find(id='ctl00_ContentPlaceHolderSNR_lblToManyRecordsError') is not None:
+            # Too many results
+            pass
+        elif self.br.find(id=re.compile('tblItemDetails$')) is not None:
+            items = self._process_list()
+            self.total_results = self.get_total_results()
+        elif self.br.find(id=re.compile('ucItemDetails_phDetailsView$')) is not None:
+            self.details = self.br.find('div', 'detailsTable')
+            items = [self.get_summary()]
+            self.total_results = 1
+        return items
 
-            return items
-
-    def _process_list(self, soup):
-        results = soup.find(
-                            'table',
-                            attrs={'id': re.compile('tblItemDetails$')}
-                            ).findAll('tr')[1:]
+    def _process_list(self):
+        results = self.br.find(
+            'table',
+            attrs={'id': re.compile('tblItemDetails$')}
+        ).findAll('tr')[1:]
         items = []
         for row in results:
             item = self._process_row(row)
@@ -689,25 +662,17 @@ class RSSearchClient(RSItemClient):
         date_range['start_date'] = utilities.convert_date_to_iso(dates['start_date'])
         date_range['end_date'] = utilities.convert_date_to_iso(dates['end_date'])
         item['date_range'] = date_range
-        barcode = cells[6].string.strip()
+        barcode = cells[7].string.strip()
         if cells[5].find('a') is not None:
             item['digitised_status'] = True
-            rs_item = RSItemClient()
-            item['digitised_pages'] = rs_item.get_digitised_pages(barcode)
+            item['digitised_pages'] = self.get_digitised_pages(barcode)
         else:
             item['digitised_status'] = False
             item['digitised_pages'] = 0
         item['identifier'] = barcode
         return item
 
-    def get_total_results(self, html=None):
-        if html:
-            soup = BeautifulSoup(html)
-            total = re.search(
-                                r'of (\d+)',
-                                soup.find('span', attrs={'id': re.compile('lblDisplaying$')}).string
-                            ).group(1)
-        else:
-            total = self.total_results
+    def get_total_results(self):
+        total_text = self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}).text
+        total = re.search(r'of (\d+)', total_text).group(1)
         return total
-

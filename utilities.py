@@ -91,14 +91,17 @@ def convert_date_to_iso(date_dict):
     Simple ISO date formatting.
     Not dependent on strftime and its year limits.
     '''
-    date_obj = date_dict['date']
-    if date_obj:
-        if date_dict['day']:
-            iso_date = '{0.year}-{0.month:02d}-{0.day:02d}'.format(date_obj)
-        elif date_dict['month']:
-            iso_date = '{0.year}-{0.month:02d}'.format(date_obj)
+    try:
+        date_obj = date_dict['date']
+        if date_obj:
+            if date_dict['day']:
+                iso_date = '{0.year}-{0.month:02d}-{0.day:02d}'.format(date_obj)
+            elif date_dict['month']:
+                iso_date = '{0.year}-{0.month:02d}'.format(date_obj)
+            else:
+                iso_date = '{0.year}'.format(date_obj)
         else:
-            iso_date = '{0.year}'.format(date_obj)
-    else:
+            iso_date = None
+    except TypeError:
         iso_date = None
     return iso_date

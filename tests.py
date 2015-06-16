@@ -58,7 +58,7 @@ class TestSeriesFunctions(unittest.TestCase):
     def test_get_number_described(self):
         results = {
             'described_note': 'All items from this series are entered on RecordSearch.',
-            'described_number': '64452'
+            'described_number': '64454'
         }
         items_described = self.rs.get_number_described('A1')
         self.assertEqual(items_described, results)
@@ -80,7 +80,7 @@ class TestItemFunctions(unittest.TestCase):
 
     def test_get_digitised_pages(self):
         pages = self.rs.get_digitised_pages('3445411')
-        self.assertEqual(pages, '47')
+        self.assertEqual(pages, 47)
 
 
 class TestUtilityFunctions(unittest.TestCase):

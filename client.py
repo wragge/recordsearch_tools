@@ -1,7 +1,7 @@
 import re
 from urllib import quote_plus
 from robobrowser import RoboBrowser
-
+from werkzeug.exceptions import BadRequestKeyError
 import utilities
 from utilities import retry
 
@@ -137,6 +137,35 @@ ACCESS = [
     'NYE'
 ]
 
+NS_CATEGORIES = {
+        "2": "Australian Defence Forces personnel records",
+        "3": "Army personnel records",
+        "4": "Boer War",
+        "5": "World War I",
+        "6": "World War II",
+        "7": "Pre WWI, Inter war, post WWII",
+        "8": "Air Force personnel records",
+        "9": "Navy personnel records",
+        "10": "Other defence records",
+        "11": "Service pay records",
+        "12": "RAAF accident reports",
+        "13": "Australian Prisoners of War records",
+        "14": "Court martial records",
+        "15": "Repatriation cases (Boer War &amp; WWI)",
+        "16": "War gratuity records",
+        "17": "Civilian service records",
+        "18": "Army Inventions Directorate",
+        "19": "Papua New Guinea evacuees records",
+        "20": "Immigration and naturalisation records",
+        "21": "Other records",
+        "22": "Security and intelligence records",
+        "23": "Arts and science records",
+        "24": "Australian Broadcasting Commission",
+        "25": "Commonwealth Literary Fund",
+        "26": "Copyright, patents, trademarks",
+        "27": "High Court cases"
+}
+
 
 class UsageError(Exception):
     pass
@@ -151,7 +180,7 @@ class RSClient():
 
     def _create_browser(self):
         url = 'http://recordsearch.naa.gov.au/scripts/Logon.asp?N=guest'
-        self.br = RoboBrowser(parser='lxml')
+        self.br = RoboBrowser(parser='lxml', user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.81 Safari/537.36')
         self.br.open(url)
         form = self.br.get_form(id='t')
         self.br.submit_form(form)
@@ -179,7 +208,7 @@ class RSClient():
                 self.entity_id = entity_id
                 self.details = details
             else:
-                raise UsageError('No details found for {}'.format(id))
+                raise UsageError('No details found for {}'.format(entity_id))
         return details
 
     def _get_cell(self, label, entity_id):
@@ -234,17 +263,18 @@ class RSClient():
                 try:
                     date_str = relation.find('div', 'dates').string.strip()
                 except AttributeError:
-                    dates = {'date_str': date_str, 'start_date': None, 'end_date': None}
+                    date_str = ''
+                    dates = {'date_str': '', 'start_date': None, 'end_date': None}
                 else:
                     dates = utilities.process_date_string(date_str)
-                    if date_format == 'iso':
-                        formatted_dates = {
-                                            'date_str': date_str,
-                                            'start_date': utilities.convert_date_to_iso(dates['start_date']),
-                                            'end_date': utilities.convert_date_to_iso(dates['end_date']),
-                                            }
-                    elif date_format == 'obj':
-                        formatted_dates = dates
+                if date_format == 'iso':
+                    formatted_dates = {
+                                        'date_str': date_str,
+                                        'start_date': utilities.convert_date_to_iso(dates['start_date']),
+                                        'end_date': utilities.convert_date_to_iso(dates['end_date']),
+                                        }
+                elif date_format == 'obj':
+                    formatted_dates = dates
                 details = [string for string in relation.find('div', 'linkagesInfo').stripped_strings]
                 try:
                     identifier = details[0]
@@ -270,16 +300,19 @@ class RSClient():
         Note that you don't need a session id to access these pages,
         so there's no need to go through get_url().
         '''
-        url = 'http://recordsearch.naa.gov.au/scripts/Imagine.asp?B={}&I=1&SE=1'.format(entity_id)
+        #url = 'http://recordsearch.naa.gov.au/scripts/Imagine.asp?B={}&I=1&SE=1'.format(entity_id)
+        url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ViewImage.aspx?B={}'.format(entity_id)
         br = RoboBrowser(parser='lxml')
         br.open(url)
         try:
-            pages = br.find('input', attrs={'id': "Hidden3"})['value']
-        except TypeError:
-            pages = '0'
+            pages = int(br.find('span', attrs={'id': "lblEndPage"}).string)
+        except AttributeError:
+            pages = 0
         return pages
 
     def _get_advanced_search_form(self):
+        # Added header 10 June 2015 -- otherwise causes error
+        self.br.session.headers.update({'Referer': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/BasicSearch.aspx'})
         self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchItems.aspx')
         search_form = self.br.get_form(id="aspnetForm")
         return search_form
@@ -299,10 +332,12 @@ class RSItemClient(RSClient):
         control_symbol = self.get_control_symbol(entity_id)
         series = self.get_series(entity_id)
         identifier = self.get_identifier(entity_id)
-        contents_dates = self.get_contents_dates(entity_id, date_format)
+        contents_dates = self.get_contents_dates(entity_id)
         digitised_status = self.get_digitised_status(entity_id)
         digitised_pages = self.get_digitised_pages(entity_id)
         access_status = self.get_access_status(entity_id)
+        access_reason = self.get_access_reason(entity_id)
+        access_decision = self.get_access_decision(entity_id)
         location = self.get_location(entity_id)
 
         return {
@@ -314,6 +349,8 @@ class RSItemClient(RSClient):
                 'digitised_status': digitised_status,
                 'digitised_pages': digitised_pages,
                 'access_status': access_status,
+                'access_reason': access_reason,
+                'access_decision': access_decision,
                 'location': location
             }
 
@@ -336,12 +373,26 @@ class RSItemClient(RSClient):
     def get_access_status(self, entity_id=None):
         return self._get_value('Access status', entity_id)
 
+    def get_access_reason(self, entity_id=None):
+        cell = self._get_cell('Reason for restriction', entity_id)
+        reasons = []
+        if cell:
+            for link in cell.find_all('a'):
+                reason = link.string.strip()
+                text = re.search(r'openWin\((.*)\)', link['onclick']).group(1)
+                note = text.split(',')[0].strip("'").replace(reason, '', 1).strip()
+                reasons.append({'reason': reason, 'note': note})
+        return reasons
+
+    def get_access_decision(self, entity_id=None, date_format='iso'):
+        return self._get_formatted_dates('Date of decision', entity_id, date_format)
+
     def get_digitised_status(self, entity_id=None):
-        if self.digitised == None:
+        if self.digitised is None:
             self._get_details(entity_id)
         return self.digitised
 
-    def get_contents_dates(self, entity_id=None, date_format='obj'):
+    def get_contents_dates(self, entity_id=None, date_format='iso'):
         return self._get_formatted_dates('Contents date range', entity_id, date_format)
 
     def _get_details(self, entity_id):
@@ -538,36 +589,47 @@ class RSSearchClient(RSItemClient):
 
     def search_names(self, page=None, results_per_page=None, sort=None, **kwargs):
         surname = kwargs.get('surname')
+        category = kwargs.get('category', '5')
         other_names = kwargs.get('other_names', '')
         service_number = kwargs.get('service_number', '')
         search_form = self._get_name_search_form()
         search_form['txtFamilyName'].value = surname
-        search_form['ddlCategory'].value = '5'
+        search_form['ddlCategory'].value = category
         submit = search_form['btnSearch']
         self.br.submit_form(search_form, submit=submit)
         running_form = self.br.get_form(attrs={'name': 'Form1'})
         self.br.submit_form(running_form)
         ns_form = self.br.get_form(id='NameSearchResultForm')
         if other_names or service_number:
-            self.br.submit_form(ns_form, submit=ns_form['btnRefineSearch'])
-            refine_form = self.br.get_form('RefineNameSearchForm2')
-            refine_form['txtGivenName'].value = other_names
-            refine_form['txtServiceNumber'].value = service_number
-            self.br.submit_form(refine_form, refine_form['btnSearch'])
-            # Returns a 'search running' page, submit again to move on.
-            running_form = self.br.get_form(attrs={'name': 'Form1'})
-            self.br.submit_form(running_form)
-            ns_form = self.br.get_form(id='NameSearchResultForm')
-        self.br.submit_form(ns_form, submit=ns_form['btnDisplay'])
-        self._get_html('ns_results', page, sort, results_per_page)
-        items = self._process_page()
+            try:
+                self.br.submit_form(ns_form, submit=ns_form['btnRefineSearch'])
+            except BadRequestKeyError:
+                pass
+            else:
+                #refine_form = self.br.get_form(id='RefineNameSearchForm2')
+                refine_form = self.br.get_forms()[0]
+                refine_form['txtGivenName'].value = other_names
+                if category == '5' and service_number:
+                    refine_form['txtServiceNumber'].value = service_number
+                self.br.submit_form(refine_form, refine_form['btnSearch'])
+                # Returns a 'search running' page, submit again to move on.
+                running_form = self.br.get_form(attrs={'name': 'Form1'})
+                self.br.submit_form(running_form)
+                ns_form = self.br.get_form(id='NameSearchResultForm')
+        try:
+            self.br.submit_form(ns_form, submit=ns_form['btnDisplay'])
+            self._get_html('ns_results', page, sort, results_per_page)
+            items = self._process_page()
+        except BadRequestKeyError:
+            self.total_results = '0'
+            self.results_per_page = results_per_page
+            items = []
         return {
                     'total_results': self.total_results,
                     'page': self.page,
                     'results_per_page': self.results_per_page,
                     'results': items
                 }
-
 
     def search(self, page=None, results_per_page=None, sort=None, **kwargs):
         if kwargs:
@@ -625,11 +687,12 @@ class RSSearchClient(RSItemClient):
         # Also if there's more than 20000 results
         if self.br.find(id='ctl00_ContentPlaceHolderSNR_lblToManyRecordsError') is not None:
             # Too many results
+            print 'TOO MANY'
             pass
         elif self.br.find(id=re.compile('tblItemDetails$')) is not None:
             items = self._process_list()
             self.total_results = self.get_total_results()
-        elif self.br.find(id=re.compile('ucItemDetails_phDetailsView$')) is not None:
+        elif self.br.find(id=re.compile('ctl00_ContentPlaceHolderSNR_ucItemDetails_phDetailsView')) is not None:
             self.details = self.br.find('div', 'detailsTable')
             items = [self.get_summary()]
             self.total_results = 1
@@ -661,7 +724,7 @@ class RSSearchClient(RSItemClient):
         date_range = {'date_str': date_str}
         date_range['start_date'] = utilities.convert_date_to_iso(dates['start_date'])
         date_range['end_date'] = utilities.convert_date_to_iso(dates['end_date'])
-        item['date_range'] = date_range
+        item['contents_dates'] = date_range
         barcode = cells[7].string.strip()
         if cells[5].find('a') is not None:
             item['digitised_status'] = True

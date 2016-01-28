@@ -3,98 +3,98 @@ from urllib import quote_plus
 from robobrowser import RoboBrowser
 from werkzeug.exceptions import BadRequestKeyError
 import utilities
-from utilities import retry
+# from utilities import retry
 
 RS_URLS = {
-        'item': 'http://www.naa.gov.au/cgi-bin/Search?O=I&Number=',
-        'series': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
-        'agency': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
-        'search_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx',
-        'ns_results': 'http://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx'
-    }
+    'item': 'http://www.naa.gov.au/cgi-bin/Search?O=I&Number=',
+    'series': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
+    'agency': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
+    'search_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx',
+    'ns_results': 'http://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx'
+}
 
 ITEM_FORM = {
     'kw': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbKeywords',
-            'type': 'input',
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbKeywords',
+        'type': 'input',
+    },
     'kw_options': {
-            'id': 'ctl00$ContentPlaceHolderSNR$ddlUsingKeywords',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlUsingKeywords',
+        'type': 'select'
+    },
     'kw_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbExKeywords',
-            'type': 'input'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbExKeywords',
+        'type': 'input'
+    },
     'kw_exclude_options': {
-            'id': 'ctl00$ContentPlaceHolderSNR$ddlUsingExKwd',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlUsingExKwd',
+        'type': 'select'
+    },
     # Set to 'on' to search in item notes
     # It's a checkbox, but uses Javascript to set text value.
     # Pretend it's a select for validation purposes.
     'search_notes': {
-            'id': 'ctl00$ContentPlaceHolderSNR$cbxKwdTitleNotes',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$cbxKwdTitleNotes',
+        'type': 'select'
+    },
     'series': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbSerNo',
-            'type': 'input'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbSerNo',
+        'type': 'input'
+    },
     'series_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbExSerNo',
-            'type': 'input'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbExSerNo',
+        'type': 'input'
+    },
     'control': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbIteControlSymb',
-            'type': 'input'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbIteControlSymb',
+        'type': 'input'
+    },
     'control_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbExIteControlSymb',
-            'type': 'input'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbExIteControlSymb',
+        'type': 'input'
+    },
     'barcode': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbIteBarcode',
-            'type': 'input'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbIteBarcode',
+        'type': 'input'
+    },
     'date_from': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbDateFrom',
-            'type': 'input'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbDateFrom',
+        'type': 'input'
+    },
     'date_to': {
-            'id': 'ctl00$ContentPlaceHolderSNR$txbDateTo',
-            'type': 'input'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$txbDateTo',
+        'type': 'input'
+    },
     # Select lists (options below)
     'formats': {
-            'id': 'ctl00$ContentPlaceHolderSNR$ddlPhysFormat',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlPhysFormat',
+        'type': 'select'
+    },
     'formats_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNR$ddlExPhysFormat',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlExPhysFormat',
+        'type': 'select'
+    },
     'locations': {
-            'id': 'ctl00$ContentPlaceHolderSNR$ddlLocation',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlLocation',
+        'type': 'select'
+    },
     'locations_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNR$ddlExLocation',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlExLocation',
+        'type': 'select'
+    },
     'access': {
-            'id': 'ctl00$ContentPlaceHolderSNR$ddlAccessStatus',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlAccessStatus',
+        'type': 'select'
+    },
     'access_exclude': {
-            'id': 'ctl00$ContentPlaceHolderSNR$ddlExAccessStatus',
-            'type': 'select'
-            },
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlExAccessStatus',
+        'type': 'select'
+    },
     # Checkbox
     'digital': {
-            'id': 'ctl00_ContentPlaceHolderSNR_cbxDigitalCopies',
-            'type': 'checkbox'
-            }
+        'id': 'ctl00_ContentPlaceHolderSNR_cbxDigitalCopies',
+        'type': 'checkbox'
+    }
 }
 
 KW_OPTIONS = [
@@ -138,40 +138,42 @@ ACCESS = [
 ]
 
 NS_CATEGORIES = {
-        "2": "Australian Defence Forces personnel records",
-        "3": "Army personnel records",
-        "4": "Boer War",
-        "5": "World War I",
-        "6": "World War II",
-        "7": "Pre WWI, Inter war, post WWII",
-        "8": "Air Force personnel records",
-        "9": "Navy personnel records",
-        "10": "Other defence records",
-        "11": "Service pay records",
-        "12": "RAAF accident reports",
-        "13": "Australian Prisoners of War records",
-        "14": "Court martial records",
-        "15": "Repatriation cases (Boer War &amp; WWI)",
-        "16": "War gratuity records",
-        "17": "Civilian service records",
-        "18": "Army Inventions Directorate",
-        "19": "Papua New Guinea evacuees records",
-        "20": "Immigration and naturalisation records",
-        "21": "Other records",
-        "22": "Security and intelligence records",
-        "23": "Arts and science records",
-        "24": "Australian Broadcasting Commission",
-        "25": "Commonwealth Literary Fund",
-        "26": "Copyright, patents, trademarks",
-        "27": "High Court cases"
+    "2": "Australian Defence Forces personnel records",
+    "3": "Army personnel records",
+    "4": "Boer War",
+    "5": "World War I",
+    "6": "World War II",
+    "7": "Pre WWI, Inter war, post WWII",
+    "8": "Air Force personnel records",
+    "9": "Navy personnel records",
+    "10": "Other defence records",
+    "11": "Service pay records",
+    "12": "RAAF accident reports",
+    "13": "Australian Prisoners of War records",
+    "14": "Court martial records",
+    "15": "Repatriation cases (Boer War &amp; WWI)",
+    "16": "War gratuity records",
+    "17": "Civilian service records",
+    "18": "Army Inventions Directorate",
+    "19": "Papua New Guinea evacuees records",
+    "20": "Immigration and naturalisation records",
+    "21": "Other records",
+    "22": "Security and intelligence records",
+    "23": "Arts and science records",
+    "24": "Australian Broadcasting Commission",
+    "25": "Commonwealth Literary Fund",
+    "26": "Copyright, patents, trademarks",
+    "27": "High Court cases"
 }
 
 
 class UsageError(Exception):
     pass
 
+
 class ServerError(Exception):
     pass
+
 
 class RSClient():
 
@@ -215,17 +217,17 @@ class RSClient():
         details = self._get_details(entity_id)
         try:
             cell = (
-                        details.find(text=re.compile(label))
-                        .parent.parent.findNextSiblings('td')[0]
-                    )
+                details.find(text=re.compile(label))
+                .parent.parent.findNextSiblings('td')[0]
+            )
         except (IndexError, AttributeError):
             # Sometimes the cell labels are inside an enclosing div,
             # but sometimes not. Try again assuming no div.
             try:
                 cell = (
-                        details.find(text=re.compile(label))
-                        .parent.findNextSiblings('td')[0]
-                    )
+                    details.find(text=re.compile(label))
+                    .parent.findNextSiblings('td')[0]
+                )
             except (IndexError, AttributeError):
                 cell = None
         return cell
@@ -244,15 +246,18 @@ class RSClient():
         except AttributeError:
             dates = {'date_str': date_str, 'start_date': None, 'end_date': None}
         else:
-            dates = utilities.process_date_string(date_str)
-            if date_format == 'iso':
-                formatted_dates = {
-                                    'date_str': date_str,
-                                    'start_date': utilities.convert_date_to_iso(dates['start_date']),
-                                    'end_date': utilities.convert_date_to_iso(dates['end_date']),
-                                    }
-            elif date_format == 'obj':
-                formatted_dates = dates
+            if date_str:
+                dates = utilities.process_date_string(date_str)
+                if date_format == 'iso':
+                    formatted_dates = {
+                        'date_str': date_str,
+                        'start_date': utilities.convert_date_to_iso(dates['start_date']),
+                        'end_date': utilities.convert_date_to_iso(dates['end_date']),
+                    }
+                elif date_format == 'obj':
+                    formatted_dates = dates
+            else:
+                formatted_dates = {'date_str': None, 'start_date': None, 'end_date': None}
         return formatted_dates
 
     def _get_relations(self, label, entity_id, date_format):
@@ -269,10 +274,10 @@ class RSClient():
                     dates = utilities.process_date_string(date_str)
                 if date_format == 'iso':
                     formatted_dates = {
-                                        'date_str': date_str,
-                                        'start_date': utilities.convert_date_to_iso(dates['start_date']),
-                                        'end_date': utilities.convert_date_to_iso(dates['end_date']),
-                                        }
+                        'date_str': date_str,
+                        'start_date': utilities.convert_date_to_iso(dates['start_date']),
+                        'end_date': utilities.convert_date_to_iso(dates['end_date']),
+                    }
                 elif date_format == 'obj':
                     formatted_dates = dates
                 details = [string for string in relation.find('div', 'linkagesInfo').stripped_strings]
@@ -283,13 +288,12 @@ class RSClient():
                     identifier = details[0]
                     title = details[0]
                 relations.append({
-                                    'date_str': formatted_dates['date_str'],
-                                    'start_date': formatted_dates['start_date'],
-                                    'end_date': formatted_dates['end_date'],
-                                    'identifier': identifier,
-                                    'title': title
-                                }
-                            )
+                    'date_str': formatted_dates['date_str'],
+                    'start_date': formatted_dates['start_date'],
+                    'end_date': formatted_dates['end_date'],
+                    'identifier': identifier,
+                    'title': title
+                })
         else:
             relations = None
         return relations
@@ -300,7 +304,7 @@ class RSClient():
         Note that you don't need a session id to access these pages,
         so there's no need to go through get_url().
         '''
-        #url = 'http://recordsearch.naa.gov.au/scripts/Imagine.asp?B={}&I=1&SE=1'.format(entity_id)
+        # url = 'http://recordsearch.naa.gov.au/scripts/Imagine.asp?B={}&I=1&SE=1'.format(entity_id)
         url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ViewImage.aspx?B={}'.format(entity_id)
         br = RoboBrowser(parser='lxml')
         br.open(url)
@@ -332,27 +336,27 @@ class RSItemClient(RSClient):
         control_symbol = self.get_control_symbol(entity_id)
         series = self.get_series(entity_id)
         identifier = self.get_identifier(entity_id)
-        contents_dates = self.get_contents_dates(entity_id)
+        contents_dates = self.get_contents_dates(entity_id, date_format)
         digitised_status = self.get_digitised_status(entity_id)
         digitised_pages = self.get_digitised_pages(entity_id)
         access_status = self.get_access_status(entity_id)
         access_reason = self.get_access_reason(entity_id)
-        access_decision = self.get_access_decision(entity_id)
+        access_decision = self.get_access_decision(entity_id, date_format)
         location = self.get_location(entity_id)
 
         return {
-                'title': title,
-                'identifier': identifier,
-                'series': series,
-                'control_symbol': control_symbol,
-                'contents_dates': contents_dates,
-                'digitised_status': digitised_status,
-                'digitised_pages': digitised_pages,
-                'access_status': access_status,
-                'access_reason': access_reason,
-                'access_decision': access_decision,
-                'location': location
-            }
+            'title': title,
+            'identifier': identifier,
+            'series': series,
+            'control_symbol': control_symbol,
+            'contents_dates': contents_dates,
+            'digitised_status': digitised_status,
+            'digitised_pages': digitised_pages,
+            'access_status': access_status,
+            'access_reason': access_reason,
+            'access_decision': access_decision,
+            'location': location
+        }
 
     def get_title(self, entity_id=None):
         return self._get_value('Title', entity_id)
@@ -471,17 +475,18 @@ class RSSeriesClient(RSClient):
     def get_quantity_location(self, entity_id=None):
         cell = self._get_cell('Quantity and location', entity_id)
         locations = []
-        for location in cell.findAll('li'):
-            try:
-                quantity, location = re.search(r'(\d+\.*\d*) metres held in ([A-Z,a-z]+)', location.string).groups()
-                quantity = float(quantity)
-            except AttributeError:
-                quantity = None
-                location = None
-            locations.append({
-                                'quantity': quantity,
-                                'location': location
-                            })
+        if cell:
+            for location in cell.findAll('li'):
+                try:
+                    quantity, location = re.search(r'(\d+\.*\d*) metres held in ([A-Z,a-z]+)', location.string).groups()
+                    quantity = float(quantity)
+                except AttributeError:
+                    quantity = None
+                    location = None
+                locations.append({
+                    'quantity': quantity,
+                    'location': location
+                })
         return locations
 
     def get_previous_series(self, entity_id=None, date_format='obj'):
@@ -536,8 +541,8 @@ class RSAgencyClient(RSClient):
     def get_summary(self, entity_id=None, date_format='obj'):
         title = self.get_title(entity_id)
         return {
-                    'title': title
-            }
+            'title': title
+        }
 
     def get_identifier(self, entity_id=None):
         return self._get_value('Agency number', entity_id)
@@ -606,7 +611,7 @@ class RSSearchClient(RSItemClient):
             except BadRequestKeyError:
                 pass
             else:
-                #refine_form = self.br.get_form(id='RefineNameSearchForm2')
+                # refine_form = self.br.get_form(id='RefineNameSearchForm2')
                 refine_form = self.br.get_forms()[0]
                 refine_form['txtGivenName'].value = other_names
                 if category == '5' and service_number:
@@ -625,11 +630,11 @@ class RSSearchClient(RSItemClient):
             self.results_per_page = results_per_page
             items = []
         return {
-                    'total_results': self.total_results,
-                    'page': self.page,
-                    'results_per_page': self.results_per_page,
-                    'results': items
-                }
+            'total_results': self.total_results,
+            'page': self.page,
+            'results_per_page': self.results_per_page,
+            'results': items
+        }
 
     def search(self, page=None, results_per_page=None, sort=None, **kwargs):
         if kwargs:
@@ -644,11 +649,11 @@ class RSSearchClient(RSItemClient):
                 items = self._process_page()
         self.results = items
         return {
-                    'total_results': self.total_results,
-                    'page': self.page,
-                    'results_per_page': self.results_per_page,
-                    'results': items
-                }
+            'total_results': self.total_results,
+            'page': self.page,
+            'results_per_page': self.results_per_page,
+            'results': items
+        }
 
     def _get_html(self, search_type, page, sort, results_per_page):
         '''

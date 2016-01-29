@@ -83,6 +83,52 @@ class TestItemFunctions(unittest.TestCase):
         self.assertEqual(pages, 47)
 
 
+class TestAgencyFunctions(unittest.TestCase):
+
+    def setUp(self):
+        self.rs = client.RSAgencyClient()
+
+    def test_get_identifier(self):
+        identifier = self.rs.get_identifier('CA 12')
+        self.assertEqual(identifier, 'CA 12')
+
+    def test_get_title(self):
+        test_title = (
+            'Prime Minister\'s Department'
+        )
+        title = self.rs.get_title('CA 12')
+        self.assertEqual(title, test_title)
+
+    def test_get_dates(self):
+        test_dates = {
+            'date_str': '01 Jul 1911 -  12 Mar 1971',
+            'start_date': {
+                'date': datetime.datetime(1911, 7, 1, 0, 0),
+                'day': True,
+                'month': True
+            },
+            'end_date': {
+                'date': datetime.datetime(1971, 3, 12, 0, 0),
+                'day': True,
+                'month': True
+            }
+        }
+        dates = self.rs.get_dates('CA 12')
+        self.assertEqual(dates, test_dates)
+
+
+class TestAgencySearchFunctions(unittest.TestCase):
+
+    def setUp(self):
+        self.rs = client.RSAgencySearchClient()
+
+    def test_totals(self):
+        test_total = '191'
+        self.rs.search_agencies(function="MIGRATION")
+        total = self.rs.total_results
+        self.assertEqual(total, test_total)
+
+
 class TestUtilityFunctions(unittest.TestCase):
 
     def test_parse_date(self):

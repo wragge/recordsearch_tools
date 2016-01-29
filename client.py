@@ -10,7 +10,8 @@ RS_URLS = {
     'series': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
     'agency': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
     'search_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx',
-    'ns_results': 'http://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx'
+    'ns_results': 'http://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx',
+    'agency_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx'
 }
 
 ITEM_FORM = {
@@ -164,6 +165,29 @@ NS_CATEGORIES = {
     "25": "Commonwealth Literary Fund",
     "26": "Copyright, patents, trademarks",
     "27": "High Court cases"
+}
+
+AGENCY_FORM = {
+    'kw': {
+        'id': 'ctl00_ContentPlaceHolderSNR_txbKeywords',
+        'type': 'input'
+    },
+    'kw_options': {
+        'id': 'ctl00_ContentPlaceHolderSNR_ddlUsingKeywords',
+        'type': 'select'
+    },
+    'kw_exclude': {
+        'id': 'ctl00_ContentPlaceHolderSNR_txbExcludeKeywords',
+        'type': 'input'
+    },
+    'kw_exclude_options': {
+        'id': 'ctl00_ContentPlaceHolderSNR_ddlExcludeUsingKeywords',
+        'type': 'select'
+    },
+    'function': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txtFunctions',
+        'type': 'input'
+    }
 }
 
 
@@ -540,8 +564,27 @@ class RSAgencyClient(RSClient):
 
     def get_summary(self, entity_id=None, date_format='obj'):
         title = self.get_title(entity_id)
+        dates = self.get_dates(entity_id)
+        status = self.get_agency_status(entity_id)
+        location = self.get_location(entity_id)
+        functions = self.get_functions(entity_id)
+        previous = self.get_previous_agencies(entity_id)
+        subsequent = self.get_subsequent_agencies(entity_id)
+        superior = self.get_superior_agencies(entity_id)
+        controlled = self.get_controlled_agencies(entity_id)
+        people = self.get_associated_people(entity_id)
         return {
-            'title': title
+            'agency_id': entity_id,
+            'title': title,
+            'dates': dates,
+            'agency_status': status,
+            'location': location,
+            'functions': functions,
+            'previous_agencies': previous,
+            'subsequent_agencies': subsequent,
+            'superior_agencies': superior,
+            'controlled_agencies': controlled,
+            'associated_people': people
         }
 
     def get_identifier(self, entity_id=None):
@@ -555,6 +598,12 @@ class RSAgencyClient(RSClient):
 
     def get_dates(self, entity_id=None, date_format='obj'):
         return self._get_formatted_dates('Date range', entity_id, date_format)
+
+    def get_agency_status(self, entity_id=None):
+        return self._get_value('Agency status', entity_id)
+
+    def get_location(self, entity_id=None):
+        return self._get_value('Location', entity_id)
 
     def get_functions(self, entity_id=None, date_format='obj'):
         return self._get_relations('Function', entity_id, date_format)
@@ -573,6 +622,74 @@ class RSAgencyClient(RSClient):
 
     def get_associated_people(self, entity_id=None, date_format='obj'):
         return self._get_relations('Persons associated', entity_id, date_format)
+
+
+class RSAgencySearchClient(RSAgencyClient):
+
+    # Only working with function searches at the moment.
+
+    def __init__(self):
+        self._create_browser()
+        self.entity_type = 'agency'
+        self.entity_id = None
+        self.details = None
+        self.total_results = None
+        self.results = None
+        self.page = 1
+        self.entity_id = None
+
+    def _get_agency_search_form(self):
+        url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchAgencies.aspx'
+        self.br.open(url)
+        search_form = self.br.get_form(id="aspnetForm")
+        return search_form
+
+    def search_agencies(self, page=None, results_per_page=None, sort=None, **kwargs):
+        if kwargs:
+            self._prepare_search(**kwargs)
+            items = self._process_page()
+        elif self.results is not None:
+            if not page:
+                items = self.results
+            else:
+                self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?page={}'.format(int(page) - 1))
+                self.page = page
+                items = self._process_page()
+        self.results = items
+        return {
+            'total_results': self.total_results,
+            'page': self.page,
+            'results': items
+        }
+
+    def _prepare_search(self, **kwargs):
+        search_form = self._get_agency_search_form()
+        for key, value in kwargs.items():
+            search_form[AGENCY_FORM[key]['id']].value = value
+        submit = search_form['ctl00$ContentPlaceHolderSNR$btnSearch']
+        self.br.submit_form(search_form, submit=submit)
+        running_form = self.br.get_form(id='Form1')
+        self.br.submit_form(running_form)
+        self.total_results = self.get_total_results()
+
+    def _process_page(self):
+        results = self.br.find(
+            'table',
+            attrs={'id': 'ctl00_ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails'}
+        ).findAll('tr')[1:]
+        items = []
+        for row in results:
+            item = {}
+            cells = row.findAll('td')
+            agency_id = cells[1].a.string.strip()
+            item = self.get_summary(entity_id=agency_id)
+            items.append(item)
+        return items
+
+    def get_total_results(self):
+        total_text = self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}).text
+        total = re.search(r'of (\d+)', total_text).group(1)
+        return total
 
 
 class RSSearchClient(RSItemClient):

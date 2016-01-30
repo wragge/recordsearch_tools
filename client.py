@@ -634,6 +634,7 @@ class RSAgencySearchClient(RSAgencyClient):
         self.entity_id = None
         self.details = None
         self.total_results = None
+        self.results_per_page = 20
         self.results = None
         self.page = 1
         self.entity_id = None
@@ -645,17 +646,16 @@ class RSAgencySearchClient(RSAgencyClient):
         return search_form
 
     def search_agencies(self, page=None, results_per_page=None, sort=None, **kwargs):
-        if kwargs:
-            self._prepare_search(**kwargs)
+        self._prepare_search(**kwargs)
+        if page:
+            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?sort=1')
+            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?page={}'.format(int(page) - 1))
+            self.page = page
+        if results_per_page == 0:
+            items = []
+        else:
             items = self._process_page()
-        elif self.results is not None:
-            if not page:
-                items = self.results
-            else:
-                self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?page={}'.format(int(page) - 1))
-                self.page = page
-                items = self._process_page()
-        self.results = items
+            self.results = items
         return {
             'total_results': self.total_results,
             'page': self.page,

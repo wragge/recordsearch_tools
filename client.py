@@ -673,22 +673,30 @@ class RSAgencySearchClient(RSAgencyClient):
         self.total_results = self.get_total_results()
 
     def _process_page(self):
-        results = self.br.find(
-            'table',
-            attrs={'id': 'ctl00_ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails'}
-        ).findAll('tr')[1:]
         items = []
-        for row in results:
-            item = {}
-            cells = row.findAll('td')
-            agency_id = cells[1].a.string.strip()
-            item = self.get_summary(entity_id=agency_id)
-            items.append(item)
+        if self.br.find(id='ctl00_ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails') is not None:
+            results = self.br.find(
+                'table',
+                attrs={'id': 'ctl00_ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails'}
+            ).findAll('tr')[1:]
+            items = []
+            for row in results:
+                item = {}
+                cells = row.findAll('td')
+                agency_id = cells[1].a.string.strip()
+                item = self.get_summary(entity_id=agency_id)
+                items.append(item)
+        elif self.br.find(id='ctl00_ContentPlaceHolderSNR_ucAgencyDetails_ctl01') is not None:
+            items.append(self.get_summary())
         return items
 
     def get_total_results(self):
-        total_text = self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}).text
-        total = re.search(r'of (\d+)', total_text).group(1)
+        total = None
+        if self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}) is not None:
+            total_text = self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}).text
+            total = re.search(r'of (\d+)', total_text).group(1)
+        elif self.br.find('span', text='Displaying'):
+            total = 1
         return total
 
 

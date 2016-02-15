@@ -190,6 +190,29 @@ AGENCY_FORM = {
     }
 }
 
+SERIES_FORM = {
+    'kw': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbKeywords',
+        'type': 'input'
+    },
+    'agency_recording': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbAgencyRecording',
+        'type': 'input'
+    },
+    'agency_controlling': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbAgencyControlling',
+        'type': 'input'
+    },
+    'date_from': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbDateFrom',
+        'type': 'input'
+    },
+    'date_to': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbDateTo',
+        'type': 'input'
+    }
+}
+
 
 class UsageError(Exception):
     pass
@@ -487,7 +510,14 @@ class RSSeriesClient(RSClient):
 
     def get_number_described(self, entity_id=None):
         described = self._get_value('Items in this series on RecordSearch', entity_id)
-        described_number, described_note = re.search(r'(\d+)(.*)', described).groups()
+        try:
+            described_number, described_note = re.search(r'(\d+)(.*)', described).groups()
+        except AttributeError:
+            described_number = '0'
+            described_note = described
+        except TypeError:
+            described_number = '0'
+            described_note = ''
         return {'described_number': described_number, 'described_note': described_note.strip()}
 
     def get_recording_agencies(self, entity_id=None, date_format='obj'):
@@ -552,6 +582,82 @@ class RSSeriesClient(RSClient):
                 # Pattern not found
                 digitised = None
         return digitised
+
+
+class RSSeriesSearchClient(RSSeriesClient):
+
+    # Only working with agency and date searches at the moment.
+
+    def __init__(self):
+        self._create_browser()
+        self.entity_type = 'series'
+        self.entity_id = None
+        self.details = None
+        self.total_results = None
+        self.results_per_page = 20
+        self.results = None
+        self.page = 1
+        self.entity_id = None
+
+    def _get_series_search_form(self):
+        url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchSeries.aspx'
+        self.br.open(url)
+        search_form = self.br.get_form(id="aspnetForm")
+        return search_form
+
+    def search_series(self, page=None, results_per_page=None, sort=None, **kwargs):
+        self._prepare_search(**kwargs)
+        if page:
+            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?sort=1')
+            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?page={}'.format(int(page) - 1))
+            self.page = page
+        if results_per_page == 0:
+            items = []
+        else:
+            items = self._process_page()
+            self.results = items
+        return {
+            'total_results': self.total_results,
+            'page': self.page,
+            'results': items
+        }
+
+    def _prepare_search(self, **kwargs):
+        search_form = self._get_series_search_form()
+        for key, value in kwargs.items():
+            search_form[SERIES_FORM[key]['id']].value = value
+        submit = search_form['ctl00$ContentPlaceHolderSNR$btnSearch']
+        self.br.submit_form(search_form, submit=submit)
+        running_form = self.br.get_form(id='Form1')
+        self.br.submit_form(running_form)
+        self.total_results = self.get_total_results()
+
+    def _process_page(self):
+        items = []
+        if self.br.find(id='ctl00_ContentPlaceHolderSNR_tblSeriesDetails') is not None:
+            results = self.br.find(
+                'table',
+                attrs={'id': 'ctl00_ContentPlaceHolderSNR_tblSeriesDetails'}
+            ).findAll('tr')[1:]
+            items = []
+            for row in results:
+                item = {}
+                cells = row.findAll('td')
+                series_id = cells[1].a.string.strip()
+                item = self.get_summary(entity_id=series_id)
+                items.append(item)
+        elif self.br.find(id='ctl00_ContentPlaceHolderSNR_ucSeriesDetails_ctl01') is not None:
+            items.append(self.get_summary())
+        return items
+
+    def get_total_results(self):
+        total = None
+        if self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}) is not None:
+            total_text = self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}).text
+            total = re.search(r'of (\d+)', total_text).group(1)
+        elif self.br.find('span', text='Displaying'):
+            total = '1'
+        return total
 
 
 class RSAgencyClient(RSClient):
@@ -696,7 +802,7 @@ class RSAgencySearchClient(RSAgencyClient):
             total_text = self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}).text
             total = re.search(r'of (\d+)', total_text).group(1)
         elif self.br.find('span', text='Displaying'):
-            total = 1
+            total = '1'
         return total
 
 

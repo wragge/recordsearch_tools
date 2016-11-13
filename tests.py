@@ -169,7 +169,7 @@ class TestSeriesSearchFunctions(unittest.TestCase):
         self.rs = client.RSSeriesSearchClient()
 
     def test_totals(self):
-        test_total = '430'
+        test_total = '429'
         self.rs.search_series(agency_recording="CA 12", page=1)
         total = self.rs.total_results
         self.assertEqual(total, test_total)

@@ -369,7 +369,7 @@ class RSClient():
         # Added header 10 June 2015 -- otherwise causes error
         self.br.session.headers.update({'Referer': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/BasicSearch.aspx'})
         self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchItems.aspx')
-        search_form = self.br.get_form(id="aspnetForm")
+        search_form = self.br.get_form(id="formSNRMaster")
         return search_form
 
 
@@ -606,7 +606,7 @@ class RSSeriesSearchClient(RSSeriesClient):
     def _get_series_search_form(self):
         url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchSeries.aspx'
         self.br.open(url)
-        search_form = self.br.get_form(id="aspnetForm")
+        search_form = self.br.get_form(id="formSNRMaster")
         return search_form
 
     def search_series(self, page=None, results_per_page=None, sort=None, **kwargs):
@@ -752,7 +752,7 @@ class RSAgencySearchClient(RSAgencyClient):
     def _get_agency_search_form(self):
         url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchAgencies.aspx'
         self.br.open(url)
-        search_form = self.br.get_form(id="aspnetForm")
+        search_form = self.br.get_form(id="formSNRMaster")
         return search_form
 
     def search_agencies(self, page=None, results_per_page=None, sort=None, **kwargs):
@@ -907,7 +907,7 @@ class RSSearchClient(RSItemClient):
             11 -- av first
         '''
         if results_per_page:
-            form = self.br.get_form(id="aspnetForm")
+            form = self.br.get_form(id="formSNRMaster")
             form['ctl00$ContentPlaceHolderSNR$ddlResultsPerPage'].value = str(results_per_page)
             submit = form['ctl00$ContentPlaceHolderSNR$btnGo']
             self.br.submit_form(form, submit=submit)

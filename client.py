@@ -93,7 +93,7 @@ ITEM_FORM = {
     },
     # Checkbox
     'digital': {
-        'id': 'ctl00_ContentPlaceHolderSNR_cbxDigitalCopies',
+        'id': 'ctl00$ContentPlaceHolderSNR$cbxDigitalCopies',
         'type': 'checkbox'
     }
 }
@@ -219,6 +219,10 @@ class UsageError(Exception):
 
 
 class ServerError(Exception):
+    pass
+
+
+class TooManyError(Exception):
     pass
 
 
@@ -816,6 +820,7 @@ class RSSearchClient(RSItemClient):
         self.results_per_page = 20
         self.entity_id = None
         self.digitised = None
+        self.get_digitised = True
 
     def _get_name_search_form(self):
         url = 'http://recordsearch.naa.gov.au/Scripts/SessionManagement/SessionManager.asp?Module=NameSearch&Location=home'
@@ -867,7 +872,8 @@ class RSSearchClient(RSItemClient):
             'results': items
         }
 
-    def search(self, page=None, results_per_page=None, sort=None, **kwargs):
+    def search(self, page=None, results_per_page=None, sort=None, digitised=True, **kwargs):
+        self.get_digitised = digitised
         if kwargs:
             self._prepare_search(**kwargs)
             self._get_html('search_results', page, sort, results_per_page)
@@ -877,7 +883,10 @@ class RSSearchClient(RSItemClient):
                 items = self.results
             else:
                 self._get_html('search_results', page, sort, results_per_page)
-                items = self._process_page()
+                try:
+                    items = self._process_page()
+                except:
+                    raise
         self.results = items
         return {
             'total_results': self.total_results,
@@ -923,8 +932,7 @@ class RSSearchClient(RSItemClient):
         # Also if there's more than 20000 results
         if self.br.find(id='ctl00_ContentPlaceHolderSNR_lblToManyRecordsError') is not None:
             # Too many results
-            print 'TOO MANY'
-            pass
+            raise TooManyError
         elif self.br.find(id=re.compile('tblItemDetails$')) is not None:
             items = self._process_list()
             self.total_results = self.get_total_results()
@@ -932,6 +940,9 @@ class RSSearchClient(RSItemClient):
             self.details = self.br.find('div', 'detailsTable')
             items = [self.get_summary()]
             self.total_results = 1
+        else:
+            items = []
+            self.total_results = 0
         return items
 
     def _process_list(self):
@@ -964,10 +975,12 @@ class RSSearchClient(RSItemClient):
         barcode = cells[7].string.strip()
         if cells[5].find('a') is not None:
             item['digitised_status'] = True
-            item['digitised_pages'] = self.get_digitised_pages(barcode)
+            if self.get_digitised:
+                item['digitised_pages'] = self.get_digitised_pages(barcode)
         else:
             item['digitised_status'] = False
-            item['digitised_pages'] = 0
+            if self.get_digitised:
+                item['digitised_pages'] = 0
         item['identifier'] = barcode
         return item
 

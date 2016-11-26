@@ -434,8 +434,10 @@ class RSItemClient(RSClient):
         if cell:
             for link in cell.find_all('a'):
                 reason = link.string.strip()
-                text = re.search(r'openWin\((.*)\)', link['onclick']).group(1)
-                note = text.split(',')[0].strip("'").replace(reason, '', 1).strip()
+                # 9 October 2016 -- noticed the links on reasons now go to glossary
+                # text = re.search(r'openWin\((.*)\)', link['onclick']).group(1)
+                # note = text.split(',')[0].strip("'").replace(reason, '', 1).strip()
+                note = ""
                 reasons.append({'reason': reason, 'note': note})
         return reasons
 
@@ -936,7 +938,7 @@ class RSSearchClient(RSItemClient):
         elif self.br.find(id=re.compile('tblItemDetails$')) is not None:
             items = self._process_list()
             self.total_results = self.get_total_results()
-        elif self.br.find(id=re.compile('ctl00_ContentPlaceHolderSNR_ucItemDetails_phDetailsView')) is not None:
+        elif self.br.find(id=re.compile('ContentPlaceHolderSNR_ucItemDetails_phDetailsView')) is not None:
             self.details = self.br.find('div', 'detailsTable')
             items = [self.get_summary()]
             self.total_results = 1

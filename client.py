@@ -3,6 +3,7 @@ from urllib import quote_plus
 from robobrowser import RoboBrowser
 from werkzeug.exceptions import BadRequestKeyError
 import utilities
+import time
 # from utilities import retry
 
 RS_URLS = {
@@ -195,6 +196,10 @@ SERIES_FORM = {
         'id': 'ctl00$ContentPlaceHolderSNR$txbKeywords',
         'type': 'input'
     },
+    'series_id': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbSerNo',
+        'type': 'input'
+    },
     'agency_recording': {
         'id': 'ctl00$ContentPlaceHolderSNR$txbAgencyRecording',
         'type': 'input'
@@ -233,7 +238,7 @@ class RSClient():
 
     def _create_browser(self):
         url = 'http://recordsearch.naa.gov.au/scripts/Logon.asp?N=guest'
-        self.br = RoboBrowser(parser='lxml', user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.81 Safari/537.36')
+        self.br = RoboBrowser(parser='lxml', user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.81 Safari/537.36', history=False)
         self.br.open(url)
         form = self.br.get_form(id='t')
         self.br.submit_form(form)
@@ -281,12 +286,14 @@ class RSClient():
                 )
             except (IndexError, AttributeError):
                 cell = None
+        details.decompose()
         return cell
 
     def _get_value(self, label, entity_id):
         cell = self._get_cell(label, entity_id)
         try:
             value = ' '.join([string for string in cell.stripped_strings])
+            cell.decompose()
         except AttributeError:
             value = None
         return value
@@ -345,6 +352,8 @@ class RSClient():
                     'identifier': identifier,
                     'title': title
                 })
+                relation.decompose()
+            cell.decompose()
         else:
             relations = None
         return relations
@@ -488,17 +497,32 @@ class RSSeriesClient(RSClient):
     def get_summary(self, entity_id=None, date_format='obj'):
         title = self.get_title(entity_id)
         contents_dates = self.get_contents_dates(entity_id, date_format)
+        accumulation_dates = self.get_accumulation_dates(entity_id, date_format)
         recording_agencies = self.get_recording_agencies(entity_id, date_format)
+        controlling_agencies = self.get_controlling_agencies(entity_id, date_format)
         locations = self.get_quantity_location(entity_id)
         items_described = self.get_number_described(entity_id)
         items_digitised = self.get_number_digitised(entity_id)
+        access_status = self.get_access_status(entity_id)
+        previous = self.get_previous_series(entity_id)
+        subsequent = self.get_subsequent_series(entity_id)
+        controlling = self.get_controlling_series(entity_id)
+        related = self.get_related_series(entity_id)
         return {'identifier': entity_id,
                 'title': title,
                 'contents_dates': contents_dates,
+                'accumulation_dates': accumulation_dates,
                 'items_described': items_described,
                 'items_digitised': items_digitised,
                 'recording_agencies': recording_agencies,
-                'locations': locations}
+                'controlling_agencies': controlling_agencies,
+                'locations': locations,
+                'access_status': access_status,
+                'previous_series': previous,
+                'subsequent_series': subsequent,
+                'controlling_series': controlling,
+                'related_series': related
+                }
 
     def get_identifier(self, entity_id=None):
         return self._get_value('Series number', entity_id)
@@ -559,6 +583,19 @@ class RSSeriesClient(RSClient):
     def get_related_series(self, entity_id=None, date_format='obj'):
         return self._get_relations('Related series', entity_id, date_format)
 
+    def _get_number_results(self):
+        displaying = self.br.find(string=re.compile(r'\d+\s+(?:to \d+ )?of\s+(\d+)', re.MULTILINE))
+        if displaying:
+            number = re.search(r'of\s+(\d+)', displaying, re.MULTILINE).group(1)
+        # If more than 20000 results, RecordSearch gives you a warning.
+        elif self.br.find('span', attrs={'id': 'ContentPlaceHolderSNR_lblToManyRecordsError'}):
+            number = '20000+'
+        elif self.br.find('span', attrs={'id': 'ContentPlaceHolderSNR_lblNoRecordsError'}):
+            number = '0'
+        else:
+            number = None
+        return number
+
     def get_number_digitised(self, entity_id=None):
         '''
         Get the number of digitised files in a series.
@@ -570,27 +607,31 @@ class RSSeriesClient(RSClient):
         self.br.submit_form(search_form, submit=submit)
         running_form = self.br.get_form(id='Form1')
         self.br.submit_form(running_form)
-        try:
-            displaying = self.br.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblDisplaying'}).string
-        except AttributeError:
-            # Element not found
-            # If more than 20000 results, RecordSearch gives you a warning.
-            if self.br.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblToManyRecordsError'}):
-                digitised = '20000+'
-            else:
-                digitised = None
-        else:
-            try:
-                digitised = re.search('Displaying \d+ to \d+ of (\d+)', displaying).group(1)
-            except AttributeError:
-                # Pattern not found
-                digitised = None
-        return digitised
+        number = self._get_number_results()
+        return number
+
+    def get_access_status(self, entity_id=None):
+        '''
+        Get the number of files with each access status.
+        '''
+        access_status = {}
+        for status in ACCESS:
+            search_form = self._get_advanced_search_form()
+            search_form['ctl00$ContentPlaceHolderSNR$txbSerNo'] = entity_id
+            search_form['ctl00$ContentPlaceHolderSNR$ddlAccessStatus'] = status
+            submit = search_form['ctl00$ContentPlaceHolderSNR$btnSearch']
+            self.br.submit_form(search_form, submit=submit)
+            running_form = self.br.get_form(id='Form1')
+            self.br.submit_form(running_form)
+            number = self._get_number_results()
+            access_status[status] = number
+            time.sleep(0.5)
+        return access_status
 
 
 class RSSeriesSearchClient(RSSeriesClient):
 
-    # Only working with agency and date searches at the moment.
+    # Only working with series, agency and date searches at the moment.
 
     def __init__(self):
         self._create_browser()
@@ -638,10 +679,10 @@ class RSSeriesSearchClient(RSSeriesClient):
 
     def _process_page(self):
         items = []
-        if self.br.find(id='ctl00_ContentPlaceHolderSNR_tblSeriesDetails') is not None:
+        if self.br.find(id='ContentPlaceHolderSNR_tblSeriesDetails') is not None:
             results = self.br.find(
                 'table',
-                attrs={'id': 'ctl00_ContentPlaceHolderSNR_tblSeriesDetails'}
+                attrs={'id': 'ContentPlaceHolderSNR_tblSeriesDetails'}
             ).findAll('tr')[1:]
             items = []
             for row in results:
@@ -650,7 +691,7 @@ class RSSeriesSearchClient(RSSeriesClient):
                 series_id = cells[1].a.string.strip()
                 item = self.get_summary(entity_id=series_id)
                 items.append(item)
-        elif self.br.find(id='ctl00_ContentPlaceHolderSNR_ucSeriesDetails_ctl01') is not None:
+        elif self.br.find(id='ContentPlaceHolderSNR_ucSeriesDetails_ctl01') is not None:
             items.append(self.get_summary())
         return items
 

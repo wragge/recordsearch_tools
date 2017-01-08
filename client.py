@@ -3,6 +3,7 @@ from urllib import quote_plus
 from robobrowser import RoboBrowser
 from werkzeug.exceptions import BadRequestKeyError
 import utilities
+import time
 # from utilities import retry
 
 RS_URLS = {
@@ -10,7 +11,8 @@ RS_URLS = {
     'series': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
     'agency': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
     'search_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx',
-    'ns_results': 'http://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx'
+    'ns_results': 'http://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx',
+    'agency_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx'
 }
 
 ITEM_FORM = {
@@ -92,7 +94,7 @@ ITEM_FORM = {
     },
     # Checkbox
     'digital': {
-        'id': 'ctl00_ContentPlaceHolderSNR_cbxDigitalCopies',
+        'id': 'ctl00$ContentPlaceHolderSNR$cbxDigitalCopies',
         'type': 'checkbox'
     }
 }
@@ -166,12 +168,66 @@ NS_CATEGORIES = {
     "27": "High Court cases"
 }
 
+AGENCY_FORM = {
+    'kw': {
+        'id': 'ctl00_ContentPlaceHolderSNR_txbKeywords',
+        'type': 'input'
+    },
+    'kw_options': {
+        'id': 'ctl00_ContentPlaceHolderSNR_ddlUsingKeywords',
+        'type': 'select'
+    },
+    'kw_exclude': {
+        'id': 'ctl00_ContentPlaceHolderSNR_txbExcludeKeywords',
+        'type': 'input'
+    },
+    'kw_exclude_options': {
+        'id': 'ctl00_ContentPlaceHolderSNR_ddlExcludeUsingKeywords',
+        'type': 'select'
+    },
+    'function': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txtFunctions',
+        'type': 'input'
+    }
+}
+
+SERIES_FORM = {
+    'kw': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbKeywords',
+        'type': 'input'
+    },
+    'series_id': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbSerNo',
+        'type': 'input'
+    },
+    'agency_recording': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbAgencyRecording',
+        'type': 'input'
+    },
+    'agency_controlling': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbAgencyControlling',
+        'type': 'input'
+    },
+    'date_from': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbDateFrom',
+        'type': 'input'
+    },
+    'date_to': {
+        'id': 'ctl00$ContentPlaceHolderSNR$txbDateTo',
+        'type': 'input'
+    }
+}
+
 
 class UsageError(Exception):
     pass
 
 
 class ServerError(Exception):
+    pass
+
+
+class TooManyError(Exception):
     pass
 
 
@@ -182,7 +238,7 @@ class RSClient():
 
     def _create_browser(self):
         url = 'http://recordsearch.naa.gov.au/scripts/Logon.asp?N=guest'
-        self.br = RoboBrowser(parser='lxml', user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.81 Safari/537.36')
+        self.br = RoboBrowser(parser='lxml', user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.81 Safari/537.36', history=False)
         self.br.open(url)
         form = self.br.get_form(id='t')
         self.br.submit_form(form)
@@ -237,6 +293,7 @@ class RSClient():
         cell = self._get_cell(label, entity_id)
         try:
             value = ' '.join([string for string in cell.stripped_strings])
+            cell.decompose()
         except AttributeError:
             value = None
         return value
@@ -295,6 +352,8 @@ class RSClient():
                     'identifier': identifier,
                     'title': title
                 })
+                relation.decompose()
+            cell.decompose()
         else:
             relations = None
         return relations
@@ -319,7 +378,7 @@ class RSClient():
         # Added header 10 June 2015 -- otherwise causes error
         self.br.session.headers.update({'Referer': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/BasicSearch.aspx'})
         self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchItems.aspx')
-        search_form = self.br.get_form(id="aspnetForm")
+        search_form = self.br.get_form(id="formSNRMaster")
         return search_form
 
 
@@ -384,8 +443,10 @@ class RSItemClient(RSClient):
         if cell:
             for link in cell.find_all('a'):
                 reason = link.string.strip()
-                text = re.search(r'openWin\((.*)\)', link['onclick']).group(1)
-                note = text.split(',')[0].strip("'").replace(reason, '', 1).strip()
+                # 9 October 2016 -- noticed the links on reasons now go to glossary
+                # text = re.search(r'openWin\((.*)\)', link['onclick']).group(1)
+                # note = text.split(',')[0].strip("'").replace(reason, '', 1).strip()
+                note = ""
                 reasons.append({'reason': reason, 'note': note})
         return reasons
 
@@ -438,17 +499,38 @@ class RSSeriesClient(RSClient):
     def get_summary(self, entity_id=None, date_format='obj'):
         title = self.get_title(entity_id)
         contents_dates = self.get_contents_dates(entity_id, date_format)
+        accumulation_dates = self.get_accumulation_dates(entity_id, date_format)
         recording_agencies = self.get_recording_agencies(entity_id, date_format)
+        controlling_agencies = self.get_controlling_agencies(entity_id, date_format)
         locations = self.get_quantity_location(entity_id)
         items_described = self.get_number_described(entity_id)
         items_digitised = self.get_number_digitised(entity_id)
+        access_status = self.get_access_status(entity_id)
+        previous = self.get_previous_series(entity_id)
+        subsequent = self.get_subsequent_series(entity_id)
+        controlling = self.get_controlling_series(entity_id)
+        related = self.get_related_series(entity_id)
+        physical_format = self.get_format(entity_id)
+        arrangement = self.get_arrangement(entity_id)
+        control_symbols = self.get_control(entity_id)
         return {'identifier': entity_id,
                 'title': title,
                 'contents_dates': contents_dates,
+                'accumulation_dates': accumulation_dates,
+                'physical_format': physical_format,
+                'arrangement': arrangement,
+                'control_symbols': control_symbols,
                 'items_described': items_described,
                 'items_digitised': items_digitised,
                 'recording_agencies': recording_agencies,
-                'locations': locations}
+                'controlling_agencies': controlling_agencies,
+                'locations': locations,
+                'access_status': access_status,
+                'previous_series': previous,
+                'subsequent_series': subsequent,
+                'controlling_series': controlling,
+                'related_series': related
+                }
 
     def get_identifier(self, entity_id=None):
         return self._get_value('Series number', entity_id)
@@ -462,9 +544,29 @@ class RSSeriesClient(RSClient):
     def get_contents_dates(self, entity_id=None, date_format='obj'):
         return self._get_formatted_dates('Contents dates', entity_id, date_format)
 
+    def get_format(self, entity_id=None):
+        return self._get_value('Predominant physical format', entity_id)
+
+    def get_arrangement(self, entity_id=None):
+        return self._get_value('System of arrangement/ control', entity_id)
+
+    def get_control(self, entity_id=None):
+        return self._get_value('Range of control symbols', entity_id)
+
     def get_number_described(self, entity_id=None):
         described = self._get_value('Items in this series on RecordSearch', entity_id)
-        described_number, described_note = re.search(r'(\d+)(.*)', described).groups()
+        try:
+            described_number, described_note = re.search(r'(\d+)(.*)', described).groups()
+            try:
+                described_number = int(described_number)
+            except ValueError:
+                pass
+        except AttributeError:
+            described_number = 0
+            described_note = described
+        except TypeError:
+            described_number = 0
+            described_note = ''
         return {'described_number': described_number, 'described_note': described_note.strip()}
 
     def get_recording_agencies(self, entity_id=None, date_format='obj'):
@@ -502,6 +604,23 @@ class RSSeriesClient(RSClient):
     def get_related_series(self, entity_id=None, date_format='obj'):
         return self._get_relations('Related series', entity_id, date_format)
 
+    def _get_number_results(self):
+        displaying = self.br.find(string=re.compile(r'\d+\s+(?:to \d+ )?of\s+(\d+)', re.MULTILINE))
+        if displaying:
+            number = re.search(r'of\s+(\d+)', displaying, re.MULTILINE).group(1)
+            try:
+                number = int(number)
+            except ValueError:
+                pass
+        # If more than 20000 results, RecordSearch gives you a warning.
+        elif self.br.find('span', attrs={'id': 'ContentPlaceHolderSNR_lblToManyRecordsError'}):
+            number = '20000+'
+        elif self.br.find('span', attrs={'id': 'ContentPlaceHolderSNR_lblNoRecordsError'}):
+            number = 0
+        else:
+            number = None
+        return number
+
     def get_number_digitised(self, entity_id=None):
         '''
         Get the number of digitised files in a series.
@@ -513,22 +632,102 @@ class RSSeriesClient(RSClient):
         self.br.submit_form(search_form, submit=submit)
         running_form = self.br.get_form(id='Form1')
         self.br.submit_form(running_form)
-        try:
-            displaying = self.br.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblDisplaying'}).string
-        except AttributeError:
-            # Element not found
-            # If more than 20000 results, RecordSearch gives you a warning.
-            if self.br.find('span', attrs={'id': 'ctl00_ContentPlaceHolderSNR_lblToManyRecordsError'}):
-                digitised = '20000+'
-            else:
-                digitised = None
+        number = self._get_number_results()
+        return number
+
+    def get_access_status(self, entity_id=None):
+        '''
+        Get the number of files with each access status.
+        '''
+        access_status = {}
+        for status in ACCESS:
+            search_form = self._get_advanced_search_form()
+            search_form['ctl00$ContentPlaceHolderSNR$txbSerNo'] = entity_id
+            search_form['ctl00$ContentPlaceHolderSNR$ddlAccessStatus'] = status
+            submit = search_form['ctl00$ContentPlaceHolderSNR$btnSearch']
+            self.br.submit_form(search_form, submit=submit)
+            running_form = self.br.get_form(id='Form1')
+            self.br.submit_form(running_form)
+            number = self._get_number_results()
+            access_status[status] = number
+            time.sleep(0.5)
+        return access_status
+
+
+class RSSeriesSearchClient(RSSeriesClient):
+
+    # Only working with series, agency and date searches at the moment.
+
+    def __init__(self):
+        self._create_browser()
+        self.entity_type = 'series'
+        self.entity_id = None
+        self.details = None
+        self.total_results = None
+        self.results_per_page = 20
+        self.results = None
+        self.page = 1
+        self.entity_id = None
+
+    def _get_series_search_form(self):
+        url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchSeries.aspx'
+        self.br.open(url)
+        search_form = self.br.get_form(id="formSNRMaster")
+        return search_form
+
+    def search_series(self, page=None, results_per_page=None, sort=None, **kwargs):
+        self._prepare_search(**kwargs)
+        if page:
+            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?sort=1')
+            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?page={}'.format(int(page) - 1))
+            self.page = page
+        if results_per_page == 0:
+            items = []
         else:
-            try:
-                digitised = re.search('Displaying \d+ to \d+ of (\d+)', displaying).group(1)
-            except AttributeError:
-                # Pattern not found
-                digitised = None
-        return digitised
+            items = self._process_page()
+            self.results = items
+        return {
+            'total_results': self.total_results,
+            'page': self.page,
+            'results': items
+        }
+
+    def _prepare_search(self, **kwargs):
+        search_form = self._get_series_search_form()
+        for key, value in kwargs.items():
+            search_form[SERIES_FORM[key]['id']].value = value
+        submit = search_form['ctl00$ContentPlaceHolderSNR$btnSearch']
+        self.br.submit_form(search_form, submit=submit)
+        running_form = self.br.get_form(id='Form1')
+        self.br.submit_form(running_form)
+        self.total_results = self.get_total_results()
+
+    def _process_page(self):
+        items = []
+        if self.br.find(id='ContentPlaceHolderSNR_tblSeriesDetails') is not None:
+            results = self.br.find(
+                'table',
+                attrs={'id': 'ContentPlaceHolderSNR_tblSeriesDetails'}
+            ).findAll('tr')[1:]
+            items = []
+            for row in results:
+                item = {}
+                cells = row.findAll('td')
+                series_id = cells[1].a.string.strip()
+                item = self.get_summary(entity_id=series_id)
+                items.append(item)
+        elif self.br.find(id='ContentPlaceHolderSNR_ucSeriesDetails_ctl01') is not None:
+            items.append(self.get_summary())
+        return items
+
+    def get_total_results(self):
+        total = None
+        if self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}) is not None:
+            total_text = self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}).text
+            total = re.search(r'of (\d+)', total_text).group(1)
+        elif self.br.find('span', text='Displaying'):
+            total = '1'
+        return total
 
 
 class RSAgencyClient(RSClient):
@@ -541,8 +740,27 @@ class RSAgencyClient(RSClient):
 
     def get_summary(self, entity_id=None, date_format='obj'):
         title = self.get_title(entity_id)
+        dates = self.get_dates(entity_id)
+        status = self.get_agency_status(entity_id)
+        location = self.get_location(entity_id)
+        functions = self.get_functions(entity_id)
+        previous = self.get_previous_agencies(entity_id)
+        subsequent = self.get_subsequent_agencies(entity_id)
+        superior = self.get_superior_agencies(entity_id)
+        controlled = self.get_controlled_agencies(entity_id)
+        people = self.get_associated_people(entity_id)
         return {
-            'title': title
+            'agency_id': entity_id,
+            'title': title,
+            'dates': dates,
+            'agency_status': status,
+            'location': location,
+            'functions': functions,
+            'previous_agencies': previous,
+            'subsequent_agencies': subsequent,
+            'superior_agencies': superior,
+            'controlled_agencies': controlled,
+            'associated_people': people
         }
 
     def get_identifier(self, entity_id=None):
@@ -556,6 +774,12 @@ class RSAgencyClient(RSClient):
 
     def get_dates(self, entity_id=None, date_format='obj'):
         return self._get_formatted_dates('Date range', entity_id, date_format)
+
+    def get_agency_status(self, entity_id=None):
+        return self._get_value('Agency status', entity_id)
+
+    def get_location(self, entity_id=None):
+        return self._get_value('Location', entity_id)
 
     def get_functions(self, entity_id=None, date_format='obj'):
         return self._get_relations('Function', entity_id, date_format)
@@ -576,6 +800,82 @@ class RSAgencyClient(RSClient):
         return self._get_relations('Persons associated', entity_id, date_format)
 
 
+class RSAgencySearchClient(RSAgencyClient):
+
+    # Only working with function searches at the moment.
+
+    def __init__(self):
+        self._create_browser()
+        self.entity_type = 'agency'
+        self.entity_id = None
+        self.details = None
+        self.total_results = None
+        self.results_per_page = 20
+        self.results = None
+        self.page = 1
+        self.entity_id = None
+
+    def _get_agency_search_form(self):
+        url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchAgencies.aspx'
+        self.br.open(url)
+        search_form = self.br.get_form(id="formSNRMaster")
+        return search_form
+
+    def search_agencies(self, page=None, results_per_page=None, sort=None, **kwargs):
+        self._prepare_search(**kwargs)
+        if page:
+            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?sort=1')
+            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?page={}'.format(int(page) - 1))
+            self.page = page
+        if results_per_page == 0:
+            items = []
+        else:
+            items = self._process_page()
+            self.results = items
+        return {
+            'total_results': self.total_results,
+            'page': self.page,
+            'results': items
+        }
+
+    def _prepare_search(self, **kwargs):
+        search_form = self._get_agency_search_form()
+        for key, value in kwargs.items():
+            search_form[AGENCY_FORM[key]['id']].value = value
+        submit = search_form['ctl00$ContentPlaceHolderSNR$btnSearch']
+        self.br.submit_form(search_form, submit=submit)
+        running_form = self.br.get_form(id='Form1')
+        self.br.submit_form(running_form)
+        self.total_results = self.get_total_results()
+
+    def _process_page(self):
+        items = []
+        if self.br.find(id='ctl00_ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails') is not None:
+            results = self.br.find(
+                'table',
+                attrs={'id': 'ctl00_ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails'}
+            ).findAll('tr')[1:]
+            items = []
+            for row in results:
+                item = {}
+                cells = row.findAll('td')
+                agency_id = cells[1].a.string.strip()
+                item = self.get_summary(entity_id=agency_id)
+                items.append(item)
+        elif self.br.find(id='ctl00_ContentPlaceHolderSNR_ucAgencyDetails_ctl01') is not None:
+            items.append(self.get_summary())
+        return items
+
+    def get_total_results(self):
+        total = None
+        if self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}) is not None:
+            total_text = self.br.find('span', attrs={'id': re.compile('lblDisplaying$')}).text
+            total = re.search(r'of (\d+)', total_text).group(1)
+        elif self.br.find('span', text='Displaying'):
+            total = '1'
+        return total
+
+
 class RSSearchClient(RSItemClient):
 
     def __init__(self):
@@ -586,6 +886,7 @@ class RSSearchClient(RSItemClient):
         self.results_per_page = 20
         self.entity_id = None
         self.digitised = None
+        self.get_digitised = True
 
     def _get_name_search_form(self):
         url = 'http://recordsearch.naa.gov.au/Scripts/SessionManagement/SessionManager.asp?Module=NameSearch&Location=home'
@@ -637,7 +938,8 @@ class RSSearchClient(RSItemClient):
             'results': items
         }
 
-    def search(self, page=None, results_per_page=None, sort=None, **kwargs):
+    def search(self, page=None, results_per_page=None, sort=None, digitised=True, **kwargs):
+        self.get_digitised = digitised
         if kwargs:
             self._prepare_search(**kwargs)
             self._get_html('search_results', page, sort, results_per_page)
@@ -647,7 +949,10 @@ class RSSearchClient(RSItemClient):
                 items = self.results
             else:
                 self._get_html('search_results', page, sort, results_per_page)
-                items = self._process_page()
+                try:
+                    items = self._process_page()
+                except:
+                    raise
         self.results = items
         return {
             'total_results': self.total_results,
@@ -668,7 +973,7 @@ class RSSearchClient(RSItemClient):
             11 -- av first
         '''
         if results_per_page:
-            form = self.br.get_form(id="aspnetForm")
+            form = self.br.get_form(id="formSNRMaster")
             form['ctl00$ContentPlaceHolderSNR$ddlResultsPerPage'].value = str(results_per_page)
             submit = form['ctl00$ContentPlaceHolderSNR$btnGo']
             self.br.submit_form(form, submit=submit)
@@ -693,15 +998,17 @@ class RSSearchClient(RSItemClient):
         # Also if there's more than 20000 results
         if self.br.find(id='ctl00_ContentPlaceHolderSNR_lblToManyRecordsError') is not None:
             # Too many results
-            print 'TOO MANY'
-            pass
+            raise TooManyError
         elif self.br.find(id=re.compile('tblItemDetails$')) is not None:
             items = self._process_list()
             self.total_results = self.get_total_results()
-        elif self.br.find(id=re.compile('ctl00_ContentPlaceHolderSNR_ucItemDetails_phDetailsView')) is not None:
+        elif self.br.find(id=re.compile('ContentPlaceHolderSNR_ucItemDetails_phDetailsView')) is not None:
             self.details = self.br.find('div', 'detailsTable')
             items = [self.get_summary()]
             self.total_results = 1
+        else:
+            items = []
+            self.total_results = 0
         return items
 
     def _process_list(self):
@@ -734,10 +1041,12 @@ class RSSearchClient(RSItemClient):
         barcode = cells[7].string.strip()
         if cells[5].find('a') is not None:
             item['digitised_status'] = True
-            item['digitised_pages'] = self.get_digitised_pages(barcode)
+            if self.get_digitised:
+                item['digitised_pages'] = self.get_digitised_pages(barcode)
         else:
             item['digitised_status'] = False
-            item['digitised_pages'] = 0
+            if self.get_digitised:
+                item['digitised_pages'] = 0
         item['identifier'] = barcode
         return item
 

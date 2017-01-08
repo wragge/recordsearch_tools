@@ -83,6 +83,98 @@ class TestItemFunctions(unittest.TestCase):
         self.assertEqual(pages, 47)
 
 
+class TestAgencyFunctions(unittest.TestCase):
+
+    def setUp(self):
+        self.rs = client.RSAgencyClient()
+
+    def test_get_identifier(self):
+        identifier = self.rs.get_identifier('CA 12')
+        self.assertEqual(identifier, 'CA 12')
+
+    def test_get_title(self):
+        test_title = (
+            'Prime Minister\'s Department'
+        )
+        title = self.rs.get_title('CA 12')
+        self.assertEqual(title, test_title)
+
+    def test_get_dates(self):
+        test_dates = {
+            'date_str': '01 Jul 1911 -  12 Mar 1971',
+            'start_date': {
+                'date': datetime.datetime(1911, 7, 1, 0, 0),
+                'day': True,
+                'month': True
+            },
+            'end_date': {
+                'date': datetime.datetime(1971, 3, 12, 0, 0),
+                'day': True,
+                'month': True
+            }
+        }
+        dates = self.rs.get_dates('CA 12')
+        self.assertEqual(dates, test_dates)
+
+
+class TestAgencySearchFunctions(unittest.TestCase):
+
+    def setUp(self):
+        self.rs = client.RSAgencySearchClient()
+
+    def test_totals(self):
+        test_total = '191'
+        self.rs.search_agencies(function="MIGRATION")
+        total = self.rs.total_results
+        self.assertEqual(total, test_total)
+
+
+class TestSeriesFunctions(unittest.TestCase):
+
+    def setUp(self):
+        self.rs = client.RSSeriesClient()
+
+    def test_get_identifier(self):
+        identifier = self.rs.get_identifier('CP359/2')
+        self.assertEqual(identifier, 'CP359/2')
+
+    def test_get_title(self):
+        test_title = (
+            'Subject files maintained by the Prime Minister (William Morris Hughes) during his visit to London, 1916'
+        )
+        title = self.rs.get_title('CP359/2')
+        self.assertEqual(title, test_title)
+
+    def test_get_dates(self):
+        test_dates = {
+            'date_str': '27 Aug 1914 - 22 Apr 1918',
+            'start_date': {
+                'date': datetime.datetime(1914, 8, 27, 0, 0),
+                'day': True,
+                'month': True
+            },
+            'end_date': {
+                'date': datetime.datetime(1918, 4, 22, 0, 0),
+                'day': True,
+                'month': True
+            }
+        }
+        dates = self.rs.get_contents_dates('CP359/2')
+        self.assertEqual(dates, test_dates)
+
+
+class TestSeriesSearchFunctions(unittest.TestCase):
+
+    def setUp(self):
+        self.rs = client.RSSeriesSearchClient()
+
+    def test_totals(self):
+        test_total = '429'
+        self.rs.search_series(agency_recording="CA 12", page=1)
+        total = self.rs.total_results
+        self.assertEqual(total, test_total)
+
+
 class TestUtilityFunctions(unittest.TestCase):
 
     def test_parse_date(self):

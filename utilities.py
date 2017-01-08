@@ -76,7 +76,7 @@ def process_date_string(date_string):
     Takes a date range in a string and returns date objects,
     and booleans indicating if values for month and day exist.
     '''
-    dates = date_string.split('-')
+    dates = date_string.replace(u'\u2013', '-').split('-')
     if dates:
         start_date = parse_date(dates[0].strip())
         try:

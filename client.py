@@ -286,7 +286,6 @@ class RSClient():
                 )
             except (IndexError, AttributeError):
                 cell = None
-        details.decompose()
         return cell
 
     def _get_value(self, label, entity_id):
@@ -510,10 +509,16 @@ class RSSeriesClient(RSClient):
         subsequent = self.get_subsequent_series(entity_id)
         controlling = self.get_controlling_series(entity_id)
         related = self.get_related_series(entity_id)
+        physical_format = self.get_format(entity_id)
+        arrangement = self.get_arrangement(entity_id)
+        control_symbols = self.get_control(entity_id)
         return {'identifier': entity_id,
                 'title': title,
                 'contents_dates': contents_dates,
                 'accumulation_dates': accumulation_dates,
+                'physical_format': physical_format,
+                'arrangement': arrangement,
+                'control_symbols': control_symbols,
                 'items_described': items_described,
                 'items_digitised': items_digitised,
                 'recording_agencies': recording_agencies,
@@ -538,15 +543,28 @@ class RSSeriesClient(RSClient):
     def get_contents_dates(self, entity_id=None, date_format='obj'):
         return self._get_formatted_dates('Contents dates', entity_id, date_format)
 
+    def get_format(self, entity_id=None):
+        return self._get_value('Predominant physical format', entity_id)
+
+    def get_arrangement(self, entity_id=None):
+        return self._get_value('System of arrangement/ control', entity_id)
+
+    def get_control(self, entity_id=None):
+        return self._get_value('Range of control symbols', entity_id)
+
     def get_number_described(self, entity_id=None):
         described = self._get_value('Items in this series on RecordSearch', entity_id)
         try:
             described_number, described_note = re.search(r'(\d+)(.*)', described).groups()
+            try:
+                described_number = int(described_number)
+            except ValueError:
+                pass
         except AttributeError:
-            described_number = '0'
+            described_number = 0
             described_note = described
         except TypeError:
-            described_number = '0'
+            described_number = 0
             described_note = ''
         return {'described_number': described_number, 'described_note': described_note.strip()}
 
@@ -589,11 +607,15 @@ class RSSeriesClient(RSClient):
         displaying = self.br.find(string=re.compile(r'\d+\s+(?:to \d+ )?of\s+(\d+)', re.MULTILINE))
         if displaying:
             number = re.search(r'of\s+(\d+)', displaying, re.MULTILINE).group(1)
+            try:
+                number = int(number)
+            except ValueError:
+                pass
         # If more than 20000 results, RecordSearch gives you a warning.
         elif self.br.find('span', attrs={'id': 'ContentPlaceHolderSNR_lblToManyRecordsError'}):
             number = '20000+'
         elif self.br.find('span', attrs={'id': 'ContentPlaceHolderSNR_lblNoRecordsError'}):
-            number = '0'
+            number = 0
         else:
             number = None
         return number

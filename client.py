@@ -194,7 +194,8 @@ class RSClient():
         '''
         self.br.open(url)
         form = self.br.get_form(id='t')
-        self.br.submit_form(form)
+        if form:
+            self.br.submit_form(form)
 
     def _get_details(self, entity_id):
         '''

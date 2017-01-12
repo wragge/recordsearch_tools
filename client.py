@@ -996,7 +996,7 @@ class RSSearchClient(RSItemClient):
     def _process_page(self):
         # This will fail if there's only one result
         # Also if there's more than 20000 results
-        if self.br.find(id='ctl00_ContentPlaceHolderSNR_lblToManyRecordsError') is not None:
+        if self.br.find(id='ContentPlaceHolderSNR_lblToManyRecordsError') is not None:
             # Too many results
             raise TooManyError
         elif self.br.find(id=re.compile('tblItemDetails$')) is not None:

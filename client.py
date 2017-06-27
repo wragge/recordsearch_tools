@@ -244,15 +244,18 @@ class RSClient():
         except AttributeError:
             dates = {'date_str': date_str, 'start_date': None, 'end_date': None}
         else:
-            dates = utilities.process_date_string(date_str)
-            if date_format == 'iso':
-                formatted_dates = {
-                                    'date_str': date_str,
-                                    'start_date': utilities.convert_date_to_iso(dates['start_date']),
-                                    'end_date': utilities.convert_date_to_iso(dates['end_date']),
-                                    }
-            elif date_format == 'obj':
-                formatted_dates = dates
+            if date_str:
+                dates = utilities.process_date_string(date_str)
+                if date_format == 'iso':
+                    formatted_dates = {
+                                        'date_str': date_str,
+                                        'start_date': utilities.convert_date_to_iso(dates['start_date']),
+                                        'end_date': utilities.convert_date_to_iso(dates['end_date']),
+                                        }
+                elif date_format == 'obj':
+                    formatted_dates = dates
+            else:
+                formatted_dates = {'date_str': '', 'start_date': None, 'end_date': None}
         return formatted_dates
 
     def _get_relations(self, label, entity_id, date_format):
@@ -307,7 +310,10 @@ class RSClient():
         try:
             pages = int(br.find('span', attrs={'id': "lblEndPage"}).string)
         except AttributeError:
-            pages = 0
+            if br.find('span', attrs={'id': "lblCitation"}):
+                pages = 1
+            else:
+                pages = 0
         return pages
 
     def _get_advanced_search_form(self):
@@ -379,8 +385,10 @@ class RSItemClient(RSClient):
         if cell:
             for link in cell.find_all('a'):
                 reason = link.string.strip()
-                text = re.search(r'openWin\((.*)\)', link['onclick']).group(1)
-                note = text.split(',')[0].strip("'").replace(reason, '', 1).strip()
+                # 9 October 2016 -- noticed the links on reasons now go to glossary
+                # text = re.search(r'openWin\((.*)\)', link['onclick']).group(1)
+                # note = text.split(',')[0].strip("'").replace(reason, '', 1).strip()
+                note = ""
                 reasons.append({'reason': reason, 'note': note})
         return reasons
 

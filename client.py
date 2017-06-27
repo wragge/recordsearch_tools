@@ -501,7 +501,7 @@ class RSSeriesClient(RSClient):
         self.entity_id = None
         self.details = None
 
-    def get_summary(self, entity_id=None, date_format='obj'):
+    def get_summary(self, entity_id=None, date_format='obj', include_access_status=True):
         title = self.get_title(entity_id)
         contents_dates = self.get_contents_dates(entity_id, date_format)
         accumulation_dates = self.get_accumulation_dates(entity_id, date_format)
@@ -510,7 +510,10 @@ class RSSeriesClient(RSClient):
         locations = self.get_quantity_location(entity_id)
         items_described = self.get_number_described(entity_id)
         items_digitised = self.get_number_digitised(entity_id)
-        access_status = self.get_access_status(entity_id)
+        if include_access_status:  # This is useful but slows things down quite a lot
+            access_status = self.get_access_status(entity_id)
+        else:
+            access_status = []
         previous = self.get_previous_series(entity_id)
         subsequent = self.get_subsequent_series(entity_id)
         controlling = self.get_controlling_series(entity_id)
@@ -610,9 +613,10 @@ class RSSeriesClient(RSClient):
         return self._get_relations('Related series', entity_id, date_format)
 
     def _get_number_results(self):
-        displaying = self.br.find(string=re.compile(r'\d+\s+(?:to \d+ )?of\s+(\d+)', re.MULTILINE))
+        # displaying = self.br.find(string=re.compile(r'\d+\s+(?:to \d+ )?of\s+(\d+)', re.MULTILINE))
+        displaying = self.br.find(attrs={'id': 'ContentPlaceHolderSNR_lblDisplaying'})
         if displaying:
-            number = re.search(r'of\s+(\d+)', displaying, re.MULTILINE).group(1)
+            number = re.search(r'of\s+(\d+)', displaying.string, re.MULTILINE).group(1)
             try:
                 number = int(number)
             except ValueError:
@@ -680,7 +684,7 @@ class RSSeriesSearchClient(RSSeriesClient):
         search_form = self.br.get_form(id="formSNRMaster")
         return search_form
 
-    def search_series(self, page=None, results_per_page=None, sort=None, **kwargs):
+    def search_series(self, page=None, results_per_page=None, sort=None, include_access_status=False, **kwargs):
         self._prepare_search(**kwargs)
         if page:
             self.br.open('https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?sort=1')
@@ -689,7 +693,7 @@ class RSSeriesSearchClient(RSSeriesClient):
         if results_per_page == 0:
             items = []
         else:
-            items = self._process_page()
+            items = self._process_page(include_access_status=include_access_status)
             self.results = items
         return {
             'total_results': self.total_results,
@@ -707,7 +711,7 @@ class RSSeriesSearchClient(RSSeriesClient):
         self.br.submit_form(running_form)
         self.total_results = self.get_total_results()
 
-    def _process_page(self):
+    def _process_page(self, include_access_status):
         items = []
         if self.br.find(id='ContentPlaceHolderSNR_tblSeriesDetails') is not None:
             results = self.br.find(
@@ -719,10 +723,10 @@ class RSSeriesSearchClient(RSSeriesClient):
                 item = {}
                 cells = row.findAll('td')
                 series_id = cells[1].string.strip()
-                item = self.get_summary(entity_id=series_id)
+                item = self.get_summary(entity_id=series_id, include_access_status=include_access_status)
                 items.append(item)
         elif self.br.find(id='ContentPlaceHolderSNR_ucSeriesDetails_ctl00') is not None:
-            items.append(self.get_summary())
+            items.append(self.get_summary(include_access_status=include_access_status))
         return items
 
     def get_total_results(self):
@@ -1031,7 +1035,7 @@ class RSSearchClient(RSItemClient):
         item = {}
         cells = row.findAll('td')
         item['series'] = cells[1].string.strip()
-        item['control_symbol'] = cells[2].a.string.strip()
+        item['control_symbol'] = cells[2].string.strip()
         item['title'] = cells[3].contents[0].string.strip()
         access_string = cells[3].find('div', 'CombinedTitleBottomLeft').string
         item['access_status'] = re.search(r'Access status: (\w+)', access_string).group(1)
@@ -1043,7 +1047,7 @@ class RSSearchClient(RSItemClient):
         date_range['start_date'] = utilities.convert_date_to_iso(dates['start_date'])
         date_range['end_date'] = utilities.convert_date_to_iso(dates['end_date'])
         item['contents_dates'] = date_range
-        barcode = cells[7].string.strip()
+        barcode = cells[6].string.strip()
         if cells[5].find('a') is not None:
             item['digitised_status'] = True
             if self.get_digitised:

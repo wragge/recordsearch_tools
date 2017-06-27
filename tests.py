@@ -58,7 +58,7 @@ class TestSeriesFunctions(unittest.TestCase):
     def test_get_number_described(self):
         results = {
             'described_note': 'All items from this series are entered on RecordSearch.',
-            'described_number': '64453'
+            'described_number': 64455
         }
         items_described = self.rs.get_number_described('A1')
         self.assertEqual(items_described, results)
@@ -81,6 +81,49 @@ class TestItemFunctions(unittest.TestCase):
     def test_get_digitised_pages(self):
         pages = self.rs.get_digitised_pages('3445411')
         self.assertEqual(pages, 47)
+
+
+class TestClosedItemDetails(unittest.TestCase):
+
+        def setUp(self):
+            self.rs = client.RSItemClient()
+
+        def test_details(self):
+            test_details = {
+                'access_decision': {
+                    'date_str': u'16 Jul 2012',
+                    'end_date': None,
+                    'start_date': {
+                        'date': datetime.datetime(2012, 7, 16, 0, 0),
+                        'day': True,
+                        'month': True
+                    }
+                },
+                'access_reason': [{'note': '', 'reason': u'Withheld pending adv'}],
+                'access_status': u'Closed',
+                'contents_dates': {
+                    'date_str': u'1918 - 1925',
+                    'end_date': {
+                        'date': datetime.datetime(1925, 1, 1, 0, 0),
+                        'day': False,
+                        'month': False
+                    },
+                    'start_date': {
+                        'date': datetime.datetime(1918, 1, 1, 0, 0),
+                        'day': False,
+                        'month': False
+                    }
+                },
+                'control_symbol': u'G1924/3039',
+                'digitised_pages': 0,
+                'digitised_status': False,
+                'identifier': u'55545',
+                'location': u'Canberra',
+                'series': u'A106',
+                'title': u'Increments to Permanent Professional Officers.'
+            }
+            details = self.rs.get_summary('55545')
+            self.assertEqual(details, test_details)
 
 
 class TestAgencyFunctions(unittest.TestCase):
@@ -117,7 +160,87 @@ class TestAgencyFunctions(unittest.TestCase):
         self.assertEqual(dates, test_dates)
 
 
-class TestAgencySearchFunctions(unittest.TestCase):
+class TestAgencyDetails(unittest.TestCase):
+
+    def setUp(self):
+        self.rs = client.RSAgencyClient()
+
+    def test_summary(self):
+        test_details = {
+            'agency_id': 'CA 100',
+            'agency_status': u'Regional or State Office',
+            'associated_people': None,
+            'controlled_agencies': None,
+            'dates': {'date_str': u'01 Oct 1926 -  31 Dec 1936',
+                      'end_date': {'date': datetime.datetime(1936, 12, 31, 0, 0),
+                                   'day': True,
+                                   'month': True},
+                      'start_date': {'date': datetime.datetime(1926, 10, 1, 0, 0),
+                                     'day': True,
+                                     'month': True}},
+            'functions': [{'date_str': u'01 Oct 1926 - 31 Dec 1936',
+                           'end_date': {'date': datetime.datetime(1936, 12, 31, 0, 0),
+                                        'day': True,
+                                        'month': True},
+                           'identifier': u'HORTICULTURE',
+                           'start_date': {'date': datetime.datetime(1926, 10, 1, 0, 0),
+                                          'day': True,
+                                          'month': True},
+                           'title': u'HORTICULTURE'}],
+            'location': u'Victoria',
+            'previous_agencies': None,
+            'subsequent_agencies': None,
+            'superior_agencies': [{'date_str': u'01 Oct 1926 - 31 Jan 1928',
+                                   'end_date': {'date': datetime.datetime(1928, 1, 31, 0, 0),
+                                                'day': True,
+                                                'month': True},
+                                   'identifier': u'CA 20',
+                                   'start_date': {'date': datetime.datetime(1926, 10, 1, 0, 0),
+                                                  'day': True,
+                                                  'month': True},
+                                   'title': u'Department of Markets and Migration, Central Administration'},
+                                  {'date_str': u'01 Jan 1928 - 31 Dec 1928',
+                                   'end_date': {'date': datetime.datetime(1928, 12, 31, 0, 0),
+                                                'day': True,
+                                                'month': True},
+                                   'identifier': u'CA 21',
+                                   'start_date': {'date': datetime.datetime(1928, 1, 1, 0, 0),
+                                                  'day': True,
+                                                  'month': True},
+                                   'title': u'Department of Markets [I], Central Office'},
+                                  {'date_str': u'01 Dec 1928 - 30 Apr 1930',
+                                   'end_date': {'date': datetime.datetime(1930, 4, 30, 0, 0),
+                                                'day': True,
+                                                'month': True},
+                                   'identifier': u'CA 23',
+                                   'start_date': {'date': datetime.datetime(1928, 12, 1, 0, 0),
+                                                  'day': True,
+                                                  'month': True},
+                                   'title': u'Department of Markets and Transport, Central Office'},
+                                  {'date_str': u'01 Apr 1930 - 30 Apr 1932',
+                                   'end_date': {'date': datetime.datetime(1932, 4, 30, 0, 0),
+                                                'day': True,
+                                                'month': True},
+                                   'identifier': u'CA 25',
+                                   'start_date': {'date': datetime.datetime(1930, 4, 1, 0, 0),
+                                                  'day': True,
+                                                  'month': True},
+                                   'title': u'Department of Markets [II], Central Office'},
+                                  {'date_str': u'01 Apr 1932 - 31 Dec 1936',
+                                   'end_date': {'date': datetime.datetime(1936, 12, 31, 0, 0),
+                                                'day': True,
+                                                'month': True},
+                                   'identifier': u'CA 28',
+                                   'start_date': {'date': datetime.datetime(1932, 4, 1, 0, 0),
+                                                  'day': True,
+                                                  'month': True},
+                                   'title': u'Department of Commerce, Central Office'}],
+            'title': u'State Advisory Fruit Board, Victoria'}
+        details = self.rs.get_summary('CA 100')
+        self.assertEqual(details, test_details)
+
+
+class TestAgencySearch(unittest.TestCase):
 
     def setUp(self):
         self.rs = client.RSAgencySearchClient()
@@ -129,41 +252,76 @@ class TestAgencySearchFunctions(unittest.TestCase):
         self.assertEqual(total, test_total)
 
 
-class TestSeriesFunctions(unittest.TestCase):
+class TestSeriesDetails(unittest.TestCase):
 
     def setUp(self):
         self.rs = client.RSSeriesClient()
 
-    def test_get_identifier(self):
-        identifier = self.rs.get_identifier('CP359/2')
-        self.assertEqual(identifier, 'CP359/2')
-
-    def test_get_title(self):
-        test_title = (
-            'Subject files maintained by the Prime Minister (William Morris Hughes) during his visit to London, 1916'
-        )
-        title = self.rs.get_title('CP359/2')
-        self.assertEqual(title, test_title)
-
-    def test_get_dates(self):
-        test_dates = {
-            'date_str': '27 Aug 1914 - 22 Apr 1918',
-            'start_date': {
-                'date': datetime.datetime(1914, 8, 27, 0, 0),
-                'day': True,
-                'month': True
-            },
-            'end_date': {
-                'date': datetime.datetime(1918, 4, 22, 0, 0),
-                'day': True,
-                'month': True
-            }
+    def test_details(self):
+        test_details = {
+            'access_status': {'CLOSED': 0, 'NYE': 0, 'OPEN': 27, 'OWE': 0},
+            'accumulation_dates': {
+                'date_str': u'20 Jan 1916 - 31 Jul 1916',
+                'end_date': {'date': datetime.datetime(1916, 7, 31, 0, 0),
+                             'day': True,
+                             'month': True},
+                'start_date': {'date': datetime.datetime(1916, 1, 20, 0, 0),
+                               'day': True,
+                               'month': True}},
+            'arrangement': u'Single number system imposed by National Archives of Australia',
+            'contents_dates': {
+                'date_str': u'27 Aug 1914 - 22 Apr 1918',
+                'end_date': {'date': datetime.datetime(1918, 4, 22, 0, 0),
+                             'day': True,
+                             'month': True},
+                'start_date': {'date': datetime.datetime(1914, 8, 27, 0, 0),
+                               'day': True,
+                               'month': True}},
+            'control_symbols': u'[1] - [27]',
+            'controlling_agencies': [{
+                'date_str': u'12 Mar 1971 -',
+                'end_date': {'date': None,
+                             'day': False,
+                             'month': False},
+                'identifier': u'CA 1401',
+                'start_date': {'date': datetime.datetime(1971, 3, 12, 0, 0),
+                               'day': True,
+                               'month': True},
+                'title': u'Department of the Prime Minister and Cabinet'}],
+            'controlling_series': None,
+            'identifier': 'CP359/2',
+            'items_described': {'described_note': u'All items from this series are entered on RecordSearch.', 'described_number': 27},
+            'items_digitised': 21,
+            'locations': [{'location': u'ACT', 'quantity': 0.36}],
+            'physical_format': u'PAPER FILES AND DOCUMENTS',
+            'previous_series': None,
+            'recording_agencies': [{'date_str': u'20 Jan 1916 - 31 Jul 1916',
+                                    'end_date': {'date': datetime.datetime(1916, 7, 31, 0, 0),
+                                                 'day': True,
+                                                 'month': True},
+                                    'identifier': u'CA 12',
+                                    'start_date': {'date': datetime.datetime(1916, 1, 20, 0, 0),
+                                                   'day': True,
+                                                   'month': True},
+                                    'title': u"Prime Minister's Department - Prime Minister's Office"},
+                                   {'date_str': u'20 Jan 1916 - 31 Jul 1916',
+                                    'end_date': {'date': datetime.datetime(1916, 7, 31, 0, 0),
+                                                 'day': True,
+                                                 'month': True},
+                                    'identifier': u'CP 290',
+                                    'start_date': {'date': datetime.datetime(1916, 1, 20, 0, 0),
+                                                   'day': True,
+                                                   'month': True},
+                                    'title': u'The Rt Hon William Morris HUGHES PC, CH, KC'}],
+            'related_series': None,
+            'subsequent_series': None,
+            'title': u'Subject files maintained by the Prime Minister (William Morris Hughes) during his visit to London, 1916'
         }
-        dates = self.rs.get_contents_dates('CP359/2')
-        self.assertEqual(dates, test_dates)
+        details = self.rs.get_summary('CP359/2')
+        self.assertEqual(details, test_details)
 
 
-class TestSeriesSearchFunctions(unittest.TestCase):
+class TestSeriesSearch(unittest.TestCase):
 
     def setUp(self):
         self.rs = client.RSSeriesSearchClient()
@@ -208,6 +366,7 @@ class TestUtilityFunctions(unittest.TestCase):
         ]
         for case in cases:
             self.assertEqual(utilities.convert_date_to_iso(case[0]), case[1])
+
 
 if __name__ == '__main__':
     unittest.main()

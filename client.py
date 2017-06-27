@@ -5,14 +5,19 @@ from werkzeug.exceptions import BadRequestKeyError
 import utilities
 import time
 # from utilities import retry
+import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+# Suppress SSL warnings
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 RS_URLS = {
     'item': 'http://www.naa.gov.au/cgi-bin/Search?O=I&Number=',
     'series': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
     'agency': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
-    'search_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx',
-    'ns_results': 'http://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx',
-    'agency_results': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx'
+    'search_results': 'https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx',
+    'ns_results': 'https://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx',
+    'agency_results': 'https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx'
 }
 
 ITEM_FORM = {
@@ -237,7 +242,7 @@ class RSClient():
         self._create_browser()
 
     def _create_browser(self):
-        url = 'http://recordsearch.naa.gov.au/scripts/Logon.asp?N=guest'
+        url = 'https://recordsearch.naa.gov.au/scripts/Logon.asp?N=guest'
         self.br = RoboBrowser(parser='lxml', user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.81 Safari/537.36', history=False)
         self.br.open(url)
         form = self.br.get_form(id='t')
@@ -267,7 +272,7 @@ class RSClient():
                 self.entity_id = entity_id
                 self.details = details
             else:
-                raise UsageError('No details found for {}'.format(entity_id))
+                print 'No details found for {}'.format(entity_id)
         return details
 
     def _get_cell(self, label, entity_id):
@@ -365,7 +370,7 @@ class RSClient():
         so there's no need to go through get_url().
         '''
         # url = 'http://recordsearch.naa.gov.au/scripts/Imagine.asp?B={}&I=1&SE=1'.format(entity_id)
-        url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ViewImage.aspx?B={}'.format(entity_id)
+        url = 'https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ViewImage.aspx?B={}'.format(entity_id)
         br = RoboBrowser(parser='lxml')
         br.open(url)
         try:
@@ -377,7 +382,7 @@ class RSClient():
     def _get_advanced_search_form(self):
         # Added header 10 June 2015 -- otherwise causes error
         self.br.session.headers.update({'Referer': 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/BasicSearch.aspx'})
-        self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchItems.aspx')
+        self.br.open('https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchItems.aspx')
         search_form = self.br.get_form(id="formSNRMaster")
         return search_form
 
@@ -670,7 +675,7 @@ class RSSeriesSearchClient(RSSeriesClient):
         self.entity_id = None
 
     def _get_series_search_form(self):
-        url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchSeries.aspx'
+        url = 'https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchSeries.aspx'
         self.br.open(url)
         search_form = self.br.get_form(id="formSNRMaster")
         return search_form
@@ -678,8 +683,8 @@ class RSSeriesSearchClient(RSSeriesClient):
     def search_series(self, page=None, results_per_page=None, sort=None, **kwargs):
         self._prepare_search(**kwargs)
         if page:
-            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?sort=1')
-            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?page={}'.format(int(page) - 1))
+            self.br.open('https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?sort=1')
+            self.br.open('https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/SeriesListing.aspx?page={}'.format(int(page) - 1))
             self.page = page
         if results_per_page == 0:
             items = []
@@ -713,10 +718,10 @@ class RSSeriesSearchClient(RSSeriesClient):
             for row in results:
                 item = {}
                 cells = row.findAll('td')
-                series_id = cells[1].a.string.strip()
+                series_id = cells[1].string.strip()
                 item = self.get_summary(entity_id=series_id)
                 items.append(item)
-        elif self.br.find(id='ContentPlaceHolderSNR_ucSeriesDetails_ctl01') is not None:
+        elif self.br.find(id='ContentPlaceHolderSNR_ucSeriesDetails_ctl00') is not None:
             items.append(self.get_summary())
         return items
 
@@ -816,7 +821,7 @@ class RSAgencySearchClient(RSAgencyClient):
         self.entity_id = None
 
     def _get_agency_search_form(self):
-        url = 'http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchAgencies.aspx'
+        url = 'https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/SearchScreens/AdvSearchAgencies.aspx'
         self.br.open(url)
         search_form = self.br.get_form(id="formSNRMaster")
         return search_form
@@ -824,8 +829,8 @@ class RSAgencySearchClient(RSAgencyClient):
     def search_agencies(self, page=None, results_per_page=None, sort=None, **kwargs):
         self._prepare_search(**kwargs)
         if page:
-            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?sort=1')
-            self.br.open('http://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?page={}'.format(int(page) - 1))
+            self.br.open('https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?sort=1')
+            self.br.open('https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?page={}'.format(int(page) - 1))
             self.page = page
         if results_per_page == 0:
             items = []
@@ -850,19 +855,19 @@ class RSAgencySearchClient(RSAgencyClient):
 
     def _process_page(self):
         items = []
-        if self.br.find(id='ctl00_ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails') is not None:
+        if self.br.find(id='ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails') is not None:
             results = self.br.find(
                 'table',
-                attrs={'id': 'ctl00_ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails'}
+                attrs={'id': 'ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails'}
             ).findAll('tr')[1:]
             items = []
             for row in results:
                 item = {}
                 cells = row.findAll('td')
-                agency_id = cells[1].a.string.strip()
+                agency_id = cells[1].string.strip()
                 item = self.get_summary(entity_id=agency_id)
                 items.append(item)
-        elif self.br.find(id='ctl00_ContentPlaceHolderSNR_ucAgencyDetails_ctl01') is not None:
+        elif self.br.find(id='ContentPlaceHolderSNR_ucAgencyDetails_ctl00') is not None:
             items.append(self.get_summary())
         return items
 
@@ -889,7 +894,7 @@ class RSSearchClient(RSItemClient):
         self.get_digitised = True
 
     def _get_name_search_form(self):
-        url = 'http://recordsearch.naa.gov.au/Scripts/SessionManagement/SessionManager.asp?Module=NameSearch&Location=home'
+        url = 'https://recordsearch.naa.gov.au/Scripts/SessionManagement/SessionManager.asp?Module=NameSearch&Location=home'
         self._open_url(url)
         search_form = self.br.get_form(id="NameSearchForm")
         return search_form

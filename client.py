@@ -376,7 +376,10 @@ class RSClient():
         try:
             pages = int(br.find('span', attrs={'id': "lblEndPage"}).string)
         except AttributeError:
-            pages = 0
+            if br.find('span', attrs={'id': "lblCitation"}):
+                pages = 1
+            else:
+                pages = 0
         return pages
 
     def _get_advanced_search_form(self):

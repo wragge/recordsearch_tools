@@ -1041,9 +1041,9 @@ class RSSearchClient(RSItemClient):
         item['control_symbol'] = cells[2].string.strip()
         item['title'] = cells[3].contents[0].string.strip()
         access_string = cells[3].find('div', 'CombinedTitleBottomLeft').string
-        item['access_status'] = re.search(r'Access status: (\w+)', access_string).group(1)
+        item['access_status'] = re.search(r'Access status: ([\w ]+)', access_string).group(1).strip()
         location_string = cells[3].find('div', 'CombinedTitleBottomRight').string
-        item['location'] = re.search(r'Location: (\w+)', location_string).group(1)
+        item['location'] = re.search(r'Location: ([\w ]+)', location_string).group(1).strip()
         date_str = cells[4].string.strip()
         dates = utilities.process_date_string(date_str)
         date_range = {'date_str': date_str}

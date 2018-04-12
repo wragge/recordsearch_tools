@@ -246,7 +246,7 @@ class TestAgencySearch(unittest.TestCase):
         self.rs = client.RSAgencySearchClient()
 
     def test_totals(self):
-        test_total = '191'
+        test_total = '198'
         self.rs.search_agencies(function="MIGRATION")
         total = self.rs.total_results
         self.assertEqual(total, test_total)

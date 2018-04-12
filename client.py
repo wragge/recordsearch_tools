@@ -1,12 +1,15 @@
 import re
-from urllib import quote_plus
 from robobrowser import RoboBrowser
 from werkzeug.exceptions import BadRequestKeyError
-import utilities
+from recordsearch_tools import utilities
 import time
 # from utilities import retry
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+try:
+    from urllib.parse import quote_plus
+except ImportError:
+    from urllib import quote_plus
 
 # Suppress SSL warnings
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -272,7 +275,7 @@ class RSClient():
                 self.entity_id = entity_id
                 self.details = details
             else:
-                print 'No details found for {}'.format(entity_id)
+                print('No details found for {}'.format(entity_id))
         return details
 
     def _get_cell(self, label, entity_id):

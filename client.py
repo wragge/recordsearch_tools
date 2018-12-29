@@ -755,15 +755,15 @@ class RSAgencyClient(RSClient):
 
     def get_summary(self, entity_id=None, date_format='obj'):
         title = self.get_title(entity_id)
-        dates = self.get_dates(entity_id)
+        dates = self.get_dates(entity_id, date_format=date_format)
         status = self.get_agency_status(entity_id)
         location = self.get_location(entity_id)
-        functions = self.get_functions(entity_id)
-        previous = self.get_previous_agencies(entity_id)
-        subsequent = self.get_subsequent_agencies(entity_id)
-        superior = self.get_superior_agencies(entity_id)
-        controlled = self.get_controlled_agencies(entity_id)
-        people = self.get_associated_people(entity_id)
+        functions = self.get_functions(entity_id, date_format=date_format)
+        previous = self.get_previous_agencies(entity_id, date_format=date_format)
+        subsequent = self.get_subsequent_agencies(entity_id, date_format=date_format)
+        superior = self.get_superior_agencies(entity_id, date_format=date_format)
+        controlled = self.get_controlled_agencies(entity_id, date_format=date_format)
+        people = self.get_associated_people(entity_id, date_format=date_format)
         return {
             'agency_id': entity_id,
             'title': title,
@@ -836,7 +836,7 @@ class RSAgencySearchClient(RSAgencyClient):
         search_form = self.br.get_form(id="formSNRMaster")
         return search_form
 
-    def search_agencies(self, page=None, results_per_page=None, sort=None, **kwargs):
+    def search_agencies(self, page=None, results_per_page=None, sort=None, date_format='iso', **kwargs):
         self._prepare_search(**kwargs)
         if page:
             self.br.open('https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx?sort=1')
@@ -845,7 +845,7 @@ class RSAgencySearchClient(RSAgencyClient):
         if results_per_page == 0:
             items = []
         else:
-            items = self._process_page()
+            items = self._process_page(date_format=date_format)
             self.results = items
         return {
             'total_results': self.total_results,
@@ -863,7 +863,7 @@ class RSAgencySearchClient(RSAgencyClient):
         self.br.submit_form(running_form)
         self.total_results = self.get_total_results()
 
-    def _process_page(self):
+    def _process_page(self, date_format):
         items = []
         if self.br.find(id='ContentPlaceHolderSNR_ucAgencyListing_tblProvDetails') is not None:
             results = self.br.find(
@@ -875,7 +875,7 @@ class RSAgencySearchClient(RSAgencyClient):
                 item = {}
                 cells = row.findAll('td')
                 agency_id = cells[1].string.strip()
-                item = self.get_summary(entity_id=agency_id)
+                item = self.get_summary(entity_id=agency_id, date_format=date_format)
                 items.append(item)
         elif self.br.find(id='ContentPlaceHolderSNR_ucAgencyDetails_ctl00') is not None:
             items.append(self.get_summary())

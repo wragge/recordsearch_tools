@@ -204,6 +204,10 @@ SERIES_FORM = {
         'id': 'ctl00$ContentPlaceHolderSNR$txbKeywords',
         'type': 'input'
     },
+    'kw_options': {
+        'id': 'ctl00$ContentPlaceHolderSNR$ddlUsingKeywords',
+        'type': 'select'
+    },
     'series_id': {
         'id': 'ctl00$ContentPlaceHolderSNR$txbSerNo',
         'type': 'input'

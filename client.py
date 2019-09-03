@@ -1,7 +1,7 @@
 import re
 from robobrowser import RoboBrowser
 from werkzeug.exceptions import BadRequestKeyError
-from recordsearch_tools import utilities
+from . import utilities
 import time
 # from utilities import retry
 import requests
@@ -305,7 +305,6 @@ class RSClient():
         cell = self._get_cell(label, entity_id)
         try:
             value = ' '.join([string for string in cell.stripped_strings])
-            cell.decompose()
         except AttributeError:
             value = None
         return value

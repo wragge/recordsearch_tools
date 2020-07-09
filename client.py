@@ -15,9 +15,9 @@ except ImportError:
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 RS_URLS = {
-    'item': 'http://www.naa.gov.au/cgi-bin/Search?O=I&Number=',
-    'series': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
-    'agency': 'http://www.naa.gov.au/cgi-bin/Search?Number=',
+    'item': 'https://recordsearch.naa.gov.au/scripts/AutoSearch.asp?O=I&Number=',
+    'series': 'https://recordsearch.naa.gov.au/scripts/AutoSearch.asp?Number=',
+    'agency': 'https://recordsearch.naa.gov.au/scripts/AutoSearch.asp?Number=',
     'search_results': 'https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/ItemsListing.aspx',
     'ns_results': 'https://recordsearch.naa.gov.au/NameSearch/Interface/ItemsListing.aspx',
     'agency_results': 'https://recordsearch.naa.gov.au/SearchNRetrieve/Interface/ListingReports/AgencyListing.aspx'

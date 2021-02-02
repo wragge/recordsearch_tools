@@ -2,7 +2,7 @@
 
 This is a Python library for getting useful, machine-readable data out of RecordSearch, the National Archives of Australia's online database.
 
-It's basically a series of screen scrapers and as such is inherently fragile -- changes to the web interface can easily break the code. 
+It's basically a series of screen scrapers and as such is inherently fragile -- changes to the web interface can easily break the code.
 
 RecordSearch is a complex system and I've added bits and pieces to this code over many years. As a result it could do with a major clean-up.
 
@@ -10,7 +10,9 @@ But having said all that, it should work pretty well, and until the NAA provides
 
 ## Usage and examples
 
-There are a series of clients you can import and use:
+The easiest way to use this library is through the [RecordSearch section of the GLAM WorkBench](https://glam-workbench.github.io/recordsearch/). There you'll find many examples of the code in action that you can run in your browser as Jupyter notebooks. That includes a notebook [to harvest the results of a search](https://glam-workbench.github.io/recordsearch/#harvest-items-from-a-search-in-recordsearch) in RecordSearch.
+
+If you wan to DIY, there are a series of clients you can import and use:
 
 * RSItemClient -- information on an individual item (usually a file)
 * RSSeriesClient -- information on an individual series (a collection of items)
@@ -65,6 +67,3 @@ c.search(digitised=True, kw='wragge', series='B6286')
 ```
 
 Note that this will only return the first page of results, but it's pretty easy to build a simple harvester to loop through the complete set of search results. For example, here's a [harvester I use for downloading complete series](https://github.com/wragge/recordsearch-series-harvests).
-
-
-

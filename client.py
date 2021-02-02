@@ -63,7 +63,7 @@ ITEM_FORM = {
         'id': 'ctl00$ContentPlaceHolderSNR$txbExIteControlSymb',
         'type': 'input'
     },
-    'barcode': {
+    'item_id': {
         'id': 'ctl00$ContentPlaceHolderSNR$txbIteBarcode',
         'type': 'input'
     },
@@ -443,7 +443,7 @@ class RSItemClient(RSClient):
         return cell.find('a').string.strip()
 
     def get_identifier(self, entity_id=None):
-        return self._get_value('Item barcode', entity_id)
+        return self._get_value('Item ID', entity_id)
 
     def get_location(self, entity_id=None):
         return self._get_value('Location', entity_id)

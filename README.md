@@ -1,6 +1,6 @@
 # RecordSearch Tools
 
-**This code has been supeceded by the [RecordSearch Data Scraper](https://github.com/wragge/recordsearch_data_scraper) – please use it instead!**
+**This code has been superceded by the [RecordSearch Data Scraper](https://github.com/wragge/recordsearch_data_scraper) – please use it instead!**
 
 This is a Python library for getting useful, machine-readable data out of RecordSearch, the National Archives of Australia's online database.
 
